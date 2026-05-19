@@ -38,6 +38,15 @@ export interface CreateReorderRuleInput {
  */
 export interface IReorderService {
   // ─── Reads ──────────────────────────────────────────────────────────────
+  //
+  // Dev's pre-DDD surface (getAllReorderRules / checkReorderPoints /
+  // calculateOptimalOrderQuantity / generatePONumber / generateReorderSuggestions
+  // / etc.) was retired with `legacyReorderService` and moved to:
+  //   • `IReorderCalculationsService` — pure math (suggested qty, urgency, cost
+  //     estimate, current-stock derivation)
+  //   • `IGenerateReorderSuggestionsUseCase` — orchestrated read with side-effect
+  //   • `generate_po_number()` RPC — race-safe PO number sequence
+  // Callers using the old method names need to re-point.
 
   getRuleById(id: string): Promise<ReorderRule>
   getActiveRules(): Promise<ReorderRule[]>

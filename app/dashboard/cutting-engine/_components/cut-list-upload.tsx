@@ -6,10 +6,23 @@ import { Button } from "@/app/components/ui/button"
 import { toast } from "sonner"
 import type { ExtractedPart } from "@/src/application/vision/types"
 import type { UploadStatus } from "./upload-types"
-import { isImageFile, isSpreadsheetFile, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE } from "./upload-types"
+import {
+  isImageFile,
+  isSpreadsheetFile,
+  isCadFile,
+  ACCEPTED_FILE_TYPES,
+  MAX_FILE_SIZE,
+} from "./upload-types"
 import { parseSpreadsheet } from "./spreadsheet-parser"
 import { extractFromImage } from "@/src/infrastructure/services/visionExtractionService"
 import UploadReviewDialog from "./upload-review-dialog"
+import DxfReviewDialog from "./dxf-review-dialog"
+import { readDxfFile } from "./dxf/read-dxf-file"
+import { connectLoops, pickDefaultLayer } from "@/src/application/cad/connect-loops"
+import { detectUnits } from "@/src/application/cad/detect-units"
+import { groupLoopsIntoParts, type DxfPartCandidate } from "@/src/application/cad/group-parts"
+import type { DxfImportedPart, RejectedEntity, UnitSystem } from "@/src/application/cad/dxf-types"
+import { DxfParseError } from "@/src/application/cad/parse-dxf"
 
 const MAX_IMAGE_DIMENSION = 4096
 const MAX_IMAGE_BYTES = 3.5 * 1024 * 1024 // 3.5MB target → ~4.7MB after base64 (under Anthropic 5MB limit)
@@ -59,15 +72,28 @@ function compressImage(file: File): Promise<File> {
   })
 }
 
-interface CutListUploadProps {
-  onPartsConfirmed: (parts: ExtractedPart[], stockWidth?: number) => void
+interface DxfReviewState {
+  parts: DxfPartCandidate[]
+  detectedUnits: UnitSystem | undefined
+  rejected: RejectedEntity[]
+  ignoredLayers: string[]
+  sourceFile: string
 }
 
-export default function CutListUpload({ onPartsConfirmed }: CutListUploadProps) {
+interface CutListUploadProps {
+  onPartsConfirmed: (parts: ExtractedPart[], stockWidth?: number) => void
+  onDxfPartConfirmed?: (part: DxfImportedPart) => void
+}
+
+export default function CutListUpload({
+  onPartsConfirmed,
+  onDxfPartConfirmed,
+}: CutListUploadProps) {
   const [status, setStatus] = useState<UploadStatus>("idle")
   const [extractedParts, setExtractedParts] = useState<ExtractedPart[]>([])
   const [warnings, setWarnings] = useState<string[]>([])
   const [stockWidth, setStockWidth] = useState<number | undefined>()
+  const [dxfReview, setDxfReview] = useState<DxfReviewState | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -79,6 +105,16 @@ export default function CutListUpload({ onPartsConfirmed }: CutListUploadProps) 
 
     setStatus("processing")
     try {
+      if (isCadFile(file)) {
+        const review = await processDxfFile(file)
+        if (review) {
+          setDxfReview(review)
+          setStatus("review-dxf")
+        } else {
+          setStatus("idle")
+        }
+        return
+      }
       if (isSpreadsheetFile(file)) {
         const parts = await parseSpreadsheet(file)
         if (parts.length === 0) {
@@ -104,12 +140,17 @@ export default function CutListUpload({ onPartsConfirmed }: CutListUploadProps) 
         setStatus("review")
       } else {
         toast.error(
-          "Unsupported file type. Use images (JPG, PNG, PDF) or spreadsheets (XLSX, CSV)."
+          "Unsupported file type. Use images (JPG, PNG, PDF), spreadsheets (XLSX, CSV), or DXF."
         )
         setStatus("idle")
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to process file"
+      const message =
+        err instanceof DxfParseError
+          ? "Could not read this DXF - export as ASCII (not binary) and try again."
+          : err instanceof Error
+            ? err.message
+            : "Failed to process file"
       toast.error(message)
       setStatus("error")
       setTimeout(() => setStatus("idle"), 2000)
@@ -141,11 +182,28 @@ export default function CutListUpload({ onPartsConfirmed }: CutListUploadProps) 
     setExtractedParts([])
   }
 
+  const handleDxfConfirm = (part: DxfImportedPart) => {
+    if (!onDxfPartConfirmed) {
+      toast.error("DXF import is not wired on this page.")
+      return
+    }
+    onDxfPartConfirmed(part)
+    setStatus("idle")
+    setDxfReview(null)
+    toast.success(`Added ${part.partNumber} to cut planner.`)
+  }
+
+  const handleDxfCancel = () => {
+    setStatus("idle")
+    setDxfReview(null)
+  }
+
   const isProcessing = status === "processing"
 
   return (
     <>
       <div
+        data-testid="upload-dropzone"
         onDragOver={(e) => {
           e.preventDefault()
           setDragOver(true)
@@ -181,7 +239,7 @@ export default function CutListUpload({ onPartsConfirmed }: CutListUploadProps) 
               <FileSpreadsheet className="h-5 w-5" />
             </div>
             <p className="text-sm text-muted-foreground">
-              Drop a cut list image or spreadsheet here
+              Drop a cut list image, spreadsheet, or DXF here
             </p>
             <Button
               variant="outline"
@@ -192,7 +250,7 @@ export default function CutListUpload({ onPartsConfirmed }: CutListUploadProps) 
               Browse Files
             </Button>
             <p className="text-[11px] text-muted-foreground/70">
-              JPG, PNG, PDF, XLSX, CSV - Max 10MB
+              JPG, PNG, PDF, XLSX, CSV, DXF - Max 10MB
             </p>
           </div>
         )}
@@ -206,6 +264,76 @@ export default function CutListUpload({ onPartsConfirmed }: CutListUploadProps) 
         onConfirm={handleConfirm}
         onCancel={handleCancel}
       />
+
+      {dxfReview && (
+        <DxfReviewDialog
+          key={dxfReview.sourceFile}
+          open={status === "review-dxf"}
+          parts={dxfReview.parts}
+          detectedUnits={dxfReview.detectedUnits}
+          rejected={dxfReview.rejected}
+          ignoredLayers={dxfReview.ignoredLayers}
+          sourceFile={dxfReview.sourceFile}
+          onConfirm={handleDxfConfirm}
+          onCancel={handleDxfCancel}
+        />
+      )}
     </>
   )
+}
+
+function collectIgnoredLayers(
+  entities: { layer: string; kind: string }[],
+  activeLayer: string
+): string[] {
+  const layers = new Set<string>()
+  for (const e of entities) {
+    if (e.kind !== "unsupported" && e.layer !== activeLayer) {
+      layers.add(e.layer)
+    }
+  }
+  return Array.from(layers)
+}
+
+/**
+ * Returns a `DxfReviewState` ready for the dialog, or `null` after
+ * surfacing the appropriate operator-facing toast (DWG, no-loop).
+ * Caller transitions UploadStatus. Multi-part DXFs and curve-bearing
+ * entities are now supported and are passed through to the dialog
+ * (PR A: curves + holes + multi-loop).
+ */
+async function processDxfFile(file: File): Promise<DxfReviewState | null> {
+  if (/\.dwg$/i.test(file.name)) {
+    toast.error("DWG not supported - please Save As DXF (R2018 ASCII).")
+    return null
+  }
+  const doc = await readDxfFile(file)
+  const layer = pickDefaultLayer(doc)
+  const { loops, rejected } = connectLoops(doc, layer)
+  const parts = groupLoopsIntoParts(loops)
+
+  if (parts.length === 0) {
+    surfaceNoLoopToast(rejected)
+    return null
+  }
+
+  return {
+    parts,
+    detectedUnits: detectUnits(doc),
+    rejected,
+    ignoredLayers: collectIgnoredLayers(doc.entities, layer),
+    sourceFile: file.name,
+  }
+}
+
+function surfaceNoLoopToast(rejected: RejectedEntity[]): void {
+  if (rejected.some((r) => r.reason === "spline-rational-not-supported")) {
+    toast.error("DXF contains rational SPLINEs - flatten weighted splines in CAD before importing.")
+    return
+  }
+  if (rejected.some((r) => r.reason === "spline-malformed")) {
+    toast.error("DXF contains a malformed SPLINE - check the knot vector and control points.")
+    return
+  }
+  toast.error("No closed-loop part found in this DXF.")
 }

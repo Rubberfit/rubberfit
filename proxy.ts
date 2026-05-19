@@ -8,7 +8,8 @@
  *      non-public path get a 302 redirect to /login (HTML pages) or a
  *      401 JSON response (API routes).
  *   3. Apply role / super-admin gating for /dashboard and /admin paths.
- *   4. Attach security response headers (CSP-Report-Only, HSTS, etc.).
+ *   4. Enforce the Stripe subscription gate for authenticated app/API paths.
+ *   5. Attach security response headers (CSP-Report-Only, HSTS, etc.).
  *
  * Out of scope for this layer (see security-decisions.md → "Middleware
  * architecture" for the full decision table):
@@ -32,6 +33,13 @@ import {
   ACTIVE_TENANT_COOKIE,
   applyActiveTenantCookie,
 } from "@/app/server/auth/active-tenant"
+import { getEffectiveTier } from "@/src/application/billing/effective-tier"
+import {
+  FEATURE_TIERS,
+  meetsFeatureTier,
+  type FeatureKey,
+  type PlanTier,
+} from "@/src/application/billing/feature-tiers"
 import { DEFAULT_ROLES, type AppRole } from "@/src/application/permissions"
 import { resolveActiveTenantId } from "@/src/infrastructure/services/active-tenant.service"
 import { getProfileAccess } from "@/src/infrastructure/services/authService"
@@ -39,7 +47,9 @@ import {
   getRequiredPermission,
   hasPermission,
 } from "@/src/infrastructure/services/permissionService"
+import { getSubscriptionGateForUser } from "@/src/infrastructure/services/organizationBillingService"
 import { isApiPath, isPublicPath } from "@/src/middleware/auth-allowlist"
+import { getRequiredFeature } from "@/src/middleware/feature-gate"
 import { applySecurityHeaders } from "@/src/middleware/security-headers"
 
 type PendingCookie = { name: string; value: string; options?: CookieOptions }
@@ -156,6 +166,30 @@ export async function proxy(request: NextRequest) {
     await recoverActiveTenantCookieIfMissing(request, response, supabase, user.id)
   }
 
+  if (!shouldSkipSubscriptionGate(pathname)) {
+    const gate = await getSubscriptionGateForUser(supabase, user.id)
+    if (gate.kind !== "allowed") {
+      return applySecurityHeaders(buildSubscriptionRequiredResponse(request, pendingCookies, gate))
+    }
+
+    // Per-tier feature gate. Runs only after the subscription gate
+    // passes — a `needs_workspace` or blocked sub already gets routed
+    // to the recovery flow before tier evaluation matters.
+    const requiredFeature = getRequiredFeature(pathname)
+    if (requiredFeature !== null) {
+      const effectiveTier = getEffectiveTier(gate.planTier, gate.status)
+      if (!meetsFeatureTier(effectiveTier, requiredFeature)) {
+        return applySecurityHeaders(
+          buildFeatureLockedResponse(request, pendingCookies, {
+            featureKey: requiredFeature,
+            requiredTier: FEATURE_TIERS[requiredFeature],
+            currentTier: effectiveTier,
+          })
+        )
+      }
+    }
+  }
+
   return applySecurityHeaders(privateResponse(response))
 }
 
@@ -219,6 +253,118 @@ function buildUnauthenticatedResponse(
 
 function redirectWithCookies(url: URL, pendingCookies: PendingCookie[]): NextResponse {
   const response = NextResponse.redirect(url)
+  for (const { name, value, options } of pendingCookies) {
+    response.cookies.set(name, value, options)
+  }
+  return privateResponse(response)
+}
+
+type SubscriptionBlockedResponse =
+  | { kind: "needs_workspace" }
+  | {
+      kind: "blocked"
+      organizationId: string
+      recovery: "complete_checkout" | "update_billing" | "restart_subscription"
+    }
+
+function shouldSkipSubscriptionGate(pathname: string): boolean {
+  // `/api/stripe/webhook` is allowlisted at the auth layer (it bypasses
+  // the proxy entirely via `isPublicPath`), so it never reaches the
+  // gate — no skip entry needed here. The `_platform-admin/*` surface
+  // doesn't exist yet; add a skip line when that route lands.
+  //
+  // `/dashboard/settings/general` is exempted so a workspace whose
+  // subscription has lapsed can still view + change its saved locale,
+  // currency, time zone, unit system, and threshold. The recovery
+  // path elsewhere assumes the page is reachable — without this
+  // exemption a `past_due` org owner is hard-redirected to /checkout
+  // and cannot read the prefs they saved before billing failed.
+  return (
+    pathname === "/logout" ||
+    pathname === "/checkout" ||
+    pathname.startsWith("/checkout/") ||
+    pathname.startsWith("/api/auth/") ||
+    pathname === "/dashboard/settings/general"
+  )
+}
+
+function buildSubscriptionRequiredResponse(
+  request: NextRequest,
+  pendingCookies: PendingCookie[],
+  gate: SubscriptionBlockedResponse
+): NextResponse {
+  if (isApiPath(request.nextUrl.pathname)) {
+    const response = NextResponse.json(subscriptionErrorBody(gate), { status: 402 })
+    for (const { name, value, options } of pendingCookies) {
+      response.cookies.set(name, value, options)
+    }
+    return privateResponse(response)
+  }
+
+  const checkoutUrl = new URL("/checkout", request.url)
+  if (gate.kind === "needs_workspace") {
+    checkoutUrl.searchParams.set("intent", "needs_workspace")
+  } else {
+    checkoutUrl.searchParams.set("intent", gate.recovery)
+    checkoutUrl.searchParams.set("org", gate.organizationId)
+  }
+  return redirectWithCookies(checkoutUrl, pendingCookies)
+}
+
+function subscriptionErrorBody(gate: SubscriptionBlockedResponse): {
+  code: "NO_ACTIVE_SUBSCRIPTION"
+  recovery: "complete_checkout" | "update_billing" | "restart_subscription" | "needs_workspace"
+  organizationId?: string
+} {
+  if (gate.kind === "needs_workspace") {
+    return { code: "NO_ACTIVE_SUBSCRIPTION", recovery: "needs_workspace" }
+  }
+  return {
+    code: "NO_ACTIVE_SUBSCRIPTION",
+    recovery: gate.recovery,
+    organizationId: gate.organizationId,
+  }
+}
+
+interface FeatureLockedContext {
+  featureKey: FeatureKey
+  requiredTier: PlanTier
+  currentTier: PlanTier
+}
+
+function buildFeatureLockedResponse(
+  request: NextRequest,
+  pendingCookies: PendingCookie[],
+  context: FeatureLockedContext
+): NextResponse {
+  if (isApiPath(request.nextUrl.pathname)) {
+    const response = NextResponse.json(
+      {
+        code: "FEATURE_LOCKED" as const,
+        featureKey: context.featureKey,
+        requiredTier: context.requiredTier,
+        currentTier: context.currentTier,
+      },
+      { status: 403 }
+    )
+    for (const { name, value, options } of pendingCookies) {
+      response.cookies.set(name, value, options)
+    }
+    return privateResponse(response)
+  }
+
+  // HTML route: rewrite (not redirect) so the URL bar still shows the
+  // page the user attempted. The destination `/dashboard/locked` page
+  // reads the search params and renders the Kimi-designed LockScreen.
+  // We preserve `from` so the page can show a "you tried to visit X"
+  // breadcrumb and offer a back-button after upgrade.
+  const lockedUrl = new URL("/dashboard/locked", request.url)
+  lockedUrl.searchParams.set("feature", context.featureKey)
+  lockedUrl.searchParams.set("required", context.requiredTier)
+  lockedUrl.searchParams.set("current", context.currentTier)
+  lockedUrl.searchParams.set("from", request.nextUrl.pathname)
+
+  const response = NextResponse.rewrite(lockedUrl)
   for (const { name, value, options } of pendingCookies) {
     response.cookies.set(name, value, options)
   }

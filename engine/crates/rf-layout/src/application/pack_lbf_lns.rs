@@ -42,7 +42,8 @@ use jagua_rs::probs::bpp::entities::BPInstance;
 use rand::SeedableRng;
 use rand_distr::Uniform;
 use rand_xoshiro::Xoshiro256PlusPlus;
-use rf_geom::domain::Point2D;
+use rf_geom::domain::{Point2D, Polygon};
+use rf_geom::PolygonWithHoles;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -613,15 +614,15 @@ fn polish_pack_result(mut result: PackResult, bins: &[Bin], clearance: f64) -> P
         };
 
         // Recompute per-bin stats from `selected`.
-        let used_area: f64 = selected.iter().map(|p| polygon_area(&p.polygon)).sum();
+        let used_area: f64 = selected.iter().map(|p| p.polygon.area()).sum();
         let occupied_width = selected
             .iter()
-            .flat_map(|p| p.polygon.iter())
+            .flat_map(|p| p.polygon.outer().points().iter())
             .map(|v| v.x)
             .fold(0.0_f64, f64::max);
         let occupied_height = selected
             .iter()
-            .flat_map(|p| p.polygon.iter())
+            .flat_map(|p| p.polygon.outer().points().iter())
             .map(|v| v.y)
             .fold(0.0_f64, f64::max);
         let stock_area = bin.width * bin.height;
@@ -803,11 +804,8 @@ fn rebuild_pack_result(
         );
 
         let part = &request.items[pi.item_id];
-        let pack_polygon: Vec<Point2D> = part
-            .polygon_slice()
-            .iter()
-            .map(|p| apply_dtransformation_to_point(&abs_transf, *p))
-            .collect();
+        let part_polygon = transform_part_polygon(part, &abs_transf)?;
+        let pack_polygon = part_polygon.outer().points().to_vec();
 
         // See pack_lbf::snapshot_to_placements for the equivalent
         // dispatch logic and the rationale comment about transform
@@ -818,7 +816,7 @@ fn rebuild_pack_result(
                     if cone_packing_mode
                         == crate::application::cone_strategy::ConePackingMode::AnnularSector =>
                 {
-                    (pack_polygon, None)
+                    (part_polygon, None)
                 }
                 Some(d) => match cone_strategy.render_polygon_local(d) {
                     Some(local) => {
@@ -826,22 +824,19 @@ fn rebuild_pack_result(
                             .iter()
                             .map(|p| apply_dtransformation_to_point(&abs_transf, *p))
                             .collect();
-                        (render, Some(pack_polygon))
+                        let render =
+                            Polygon::new(render).map_err(|source| PackError::InvalidPolygon {
+                                shape_id: part.shape_id.clone(),
+                                source,
+                            })?;
+                        (PolygonWithHoles::simple(render), Some(pack_polygon))
                     }
-                    None => (pack_polygon, None),
+                    None => (part_polygon, None),
                 },
-                None => (pack_polygon, None),
+                None => (part_polygon, None),
             };
 
-        let (min_x, min_y, max_x, max_y) = polygon.iter().fold(
-            (
-                f64::INFINITY,
-                f64::INFINITY,
-                f64::NEG_INFINITY,
-                f64::NEG_INFINITY,
-            ),
-            |(mnx, mny, mxx, mxy), p| (mnx.min(p.x), mny.min(p.y), mxx.max(p.x), mxy.max(p.y)),
-        );
+        let (min, max) = polygon.bbox();
 
         grown_placements.push(Placement {
             shape_id: part.shape_id.clone(),
@@ -851,8 +846,8 @@ fn rebuild_pack_result(
             y: abs_transf.translation.1.into_inner() as f64,
             rotation_rad: abs_transf.rotation.into_inner() as f64,
             polygon,
-            width: (max_x - min_x).max(0.0),
-            height: (max_y - min_y).max(0.0),
+            width: (max.x - min.x).max(0.0),
+            height: (max.y - min.y).max(0.0),
             difficulty: None,
             tag: None,
             pack_polygon: placement_pack_polygon,
@@ -883,8 +878,8 @@ fn rebuild_pack_result(
         let mut occupied_width = 0.0f64;
         let mut occupied_height = 0.0f64;
         for p in all_placements.iter().filter(|p| p.bin_id == bin.bin_id) {
-            used_area += polygon_area(&p.polygon);
-            for v in &p.polygon {
+            used_area += p.polygon.area();
+            for v in p.polygon.outer().points() {
                 if v.x > occupied_width {
                     occupied_width = v.x;
                 }
@@ -979,31 +974,55 @@ fn apply_dtransformation_to_point(dt: &DTransformation, p: Point2D) -> Point2D {
     Point2D::new(rx as f64, ry as f64)
 }
 
-fn polygon_area(poly: &[Point2D]) -> f64 {
-    let mut s = 0.0;
-    for i in 0..poly.len() {
-        let a = poly[i];
-        let b = poly[(i + 1) % poly.len()];
-        s += a.x * b.y - b.x * a.y;
-    }
-    s.abs() / 2.0
+fn transform_part_polygon(
+    part: &crate::domain::Part,
+    transform: &DTransformation,
+) -> Result<PolygonWithHoles, PackError> {
+    let outer = transform_points(part.outer_slice(), transform);
+    let outer = Polygon::new(outer).map_err(|source| PackError::InvalidPolygon {
+        shape_id: part.shape_id.clone(),
+        source,
+    })?;
+    let holes = part
+        .holes_iter()
+        .map(|hole| {
+            Polygon::new(transform_points(hole, transform)).map_err(|source| {
+                PackError::InvalidPolygon {
+                    shape_id: part.shape_id.clone(),
+                    source,
+                }
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(PolygonWithHoles::new(outer, holes))
+}
+
+fn transform_points(points: &[Point2D], transform: &DTransformation) -> Vec<Point2D> {
+    points
+        .iter()
+        .map(|p| apply_dtransformation_to_point(transform, *p))
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::domain::{Bin, BinKind, PackMode, Part};
+    use rf_geom::PolygonWithHoles;
 
     fn rect_part(id: &str, qty: u32, w: f64, h: f64) -> Part {
         Part {
             shape_id: id.into(),
             quantity: qty,
-            polygon: Some(vec![
-                Point2D::new(0.0, 0.0),
-                Point2D::new(w, 0.0),
-                Point2D::new(w, h),
-                Point2D::new(0.0, h),
-            ]),
+            polygon: Some(
+                PolygonWithHoles::from_outer_points(vec![
+                    Point2D::new(0.0, 0.0),
+                    Point2D::new(w, 0.0),
+                    Point2D::new(w, h),
+                    Point2D::new(0.0, h),
+                ])
+                .expect("rect polygon"),
+            ),
             shape_spec: None,
             allow_rotation: true,
             grain_axis: None,

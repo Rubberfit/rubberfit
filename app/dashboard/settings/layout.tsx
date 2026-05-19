@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { usePathname, useRouter } from "next/navigation"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 
 import { cn } from "@/app/lib/utils"
 
@@ -25,11 +26,12 @@ const TABS: ReadonlyArray<{ id: string; href: string; label: string }> = [
   { id: "profile", href: "/dashboard/settings/profile", label: "Profile" },
   { id: "materials", href: "/dashboard/settings/materials", label: "Materials" },
   { id: "notifications", href: "/dashboard/settings/notifications", label: "Notifications" },
+  { id: "team", href: "/dashboard/settings/team", label: "Team" },
+  { id: "billing", href: "/dashboard/settings/billing", label: "Billing" },
 ]
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? ""
-  const router = useRouter()
 
   const activeId = TABS.find((t) => pathname.startsWith(t.href))?.id ?? "general"
 
@@ -43,10 +45,9 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
           {TABS.map((tab) => {
             const isActive = tab.id === activeId
             return (
-              <button
+              <Link
                 key={tab.id}
-                type="button"
-                onClick={() => router.push(tab.href)}
+                href={tab.href}
                 className={cn(
                   "relative font-mono text-[11px] uppercase tracking-[0.22em] py-2 whitespace-nowrap transition-colors",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:rounded-sm",
@@ -57,7 +58,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
                 aria-current={isActive ? "page" : undefined}
               >
                 {tab.label}
-              </button>
+              </Link>
             )
           })}
         </div>

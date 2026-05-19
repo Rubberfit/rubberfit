@@ -17,10 +17,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ActionActor } from "@/src/application/types/action-actor"
+import {
+  DEFAULT_ORGANIZATION_PREFERENCES,
+  type OrganizationPreferences,
+} from "@/src/infrastructure/models/organization-preferences"
+import { SQFT_PER_SQM } from "@/src/application/use-cases/purchase-orders/po-input-conversion"
+import { TOKENS } from "@/di/tokens"
 
 const requireAuthenticatedUserMock = vi.hoisted(() => vi.fn())
 vi.mock("@/app/server/auth/require-authenticated-user", () => ({
   requireAuthenticatedUser: requireAuthenticatedUserMock,
+}))
+
+const requireActiveSubscriptionMock = vi.hoisted(() => vi.fn())
+vi.mock("@/app/server/auth/require-active-subscription", () => ({
+  requireActiveSubscription: requireActiveSubscriptionMock,
 }))
 
 const requireActiveTenantMock = vi.hoisted(() => vi.fn())
@@ -31,6 +42,13 @@ vi.mock("@/app/server/auth/require-active-tenant", () => ({
 const requirePermissionMock = vi.hoisted(() => vi.fn())
 vi.mock("@/app/server/auth/require-permission", () => ({
   requirePermission: requirePermissionMock,
+}))
+
+const orgPrefsGetForOrganizationMock = vi.hoisted(() =>
+  vi.fn<(orgId: string) => Promise<OrganizationPreferences>>()
+)
+const orgPrefsServiceMock = vi.hoisted(() => ({
+  getForOrganization: orgPrefsGetForOrganizationMock,
 }))
 
 const ensureDatabaseFactoryRegisteredMock = vi.hoisted(() => vi.fn())
@@ -85,6 +103,7 @@ const ACTOR: ActionActor = {
 }
 
 const MATERIAL_ID = "00000000-0000-0000-0000-000000000aaa"
+const ORG_ID = "00000000-0000-0000-0000-0000000000aa"
 
 // Stand-in for a MaterialType entity. The action only calls .toJSON()
 // on the returned value (to shape the action return), and the entity
@@ -108,9 +127,25 @@ const FAKE_ENTITY = {
   }),
 }
 
+function buildOrgPrefs(
+  overrides: Partial<OrganizationPreferences> = {}
+): OrganizationPreferences {
+  return {
+    organizationId: ORG_ID,
+    createdAt: "2026-05-01T00:00:00.000Z",
+    updatedAt: "2026-05-01T00:00:00.000Z",
+    ...DEFAULT_ORGANIZATION_PREFERENCES,
+    ...overrides,
+  }
+}
+
 describe("app/actions/materials", () => {
   beforeEach(() => {
     requireAuthenticatedUserMock.mockResolvedValue(ACTOR)
+    requireActiveSubscriptionMock.mockResolvedValue({
+      kind: "allowed",
+      organizationId: ORG_ID,
+    })
     requireActiveTenantMock.mockReturnValue(TENANT_ID)
     requirePermissionMock.mockReturnValue(undefined)
     createSvcMock.mockResolvedValue(FAKE_ENTITY)
@@ -120,9 +155,13 @@ describe("app/actions/materials", () => {
     getByIdsSvcMock.mockResolvedValue([FAKE_ENTITY])
     existsByMaterialTypeMock.mockResolvedValue(false)
     existsActiveItemsByMaterialTypeMock.mockResolvedValue(false)
-    resolveServiceMock.mockImplementation(() => ({
-      existsActiveItemsByMaterialType: existsActiveItemsByMaterialTypeMock,
-    }))
+    orgPrefsGetForOrganizationMock.mockResolvedValue(buildOrgPrefs())
+    resolveServiceMock.mockImplementation((token: symbol) => {
+      if (token === TOKENS.IOrganizationPreferencesService) return orgPrefsServiceMock
+      return {
+        existsActiveItemsByMaterialType: existsActiveItemsByMaterialTypeMock,
+      }
+    })
   })
 
   afterEach(() => {
@@ -177,6 +216,47 @@ describe("app/actions/materials", () => {
 
     await expect(createMaterialType({ name: "Butyl" })).rejects.toThrow("forbidden")
     expect(createSvcMock).not.toHaveBeenCalled()
+  })
+
+  it("createMaterialType seeds minStockSqm from org prefs (sqft→sqm) when omitted", async () => {
+    orgPrefsGetForOrganizationMock.mockResolvedValue(
+      buildOrgPrefs({ lowStockThresholdSqft: 275 })
+    )
+    const { createMaterialType } = await import("@/app/actions/materials")
+
+    await createMaterialType({ name: "Butyl" })
+
+    expect(orgPrefsGetForOrganizationMock).toHaveBeenCalledWith(ORG_ID)
+    expect(createSvcMock).toHaveBeenCalledWith(
+      expect.objectContaining({ minStockSqm: 275 / SQFT_PER_SQM })
+    )
+  })
+
+  it("createMaterialType preserves an explicit min_stock_sqm: 0 (disable-alerts override)", async () => {
+    const { createMaterialType } = await import("@/app/actions/materials")
+
+    await createMaterialType({ name: "Butyl", min_stock_sqm: 0 })
+
+    // Explicit 0 is meaningful — the operator wants no alert. The
+    // seed lookup must NOT run, otherwise `?? orgSeed` would replace
+    // a legitimate override.
+    expect(orgPrefsGetForOrganizationMock).not.toHaveBeenCalled()
+    expect(createSvcMock).toHaveBeenCalledWith(
+      expect.objectContaining({ minStockSqm: 0 })
+    )
+  })
+
+  it("createMaterialType falls back to the model default (sqm) when org-prefs lookup fails", async () => {
+    orgPrefsGetForOrganizationMock.mockRejectedValue(new Error("rls denied"))
+    const { createMaterialType } = await import("@/app/actions/materials")
+
+    await createMaterialType({ name: "Butyl" })
+
+    expect(createSvcMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        minStockSqm: DEFAULT_ORGANIZATION_PREFERENCES.lowStockThresholdSqft / SQFT_PER_SQM,
+      })
+    )
   })
 
   // ── updateMaterialType ─────────────────────────────────────────

@@ -25,7 +25,8 @@ use lbf::config::LBFConfig;
 use lbf::opt::lbf_bpp::LBFOptimizerBP;
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
-use rf_geom::domain::Point2D;
+use rf_geom::domain::{Point2D, Polygon};
+use rf_geom::PolygonWithHoles;
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -250,7 +251,7 @@ pub fn pack_lbf_with_config(
                 request.cone_strategy.unwrap_or_default(),
                 request.cone_packing_mode.unwrap_or_default(),
                 request.clearance,
-            );
+            )?;
 
             for p in placements_this_bin {
                 // Global `instance_index` renumbering per shape â€” same
@@ -260,10 +261,10 @@ pub fn pack_lbf_with_config(
                 let instance_index = *counter;
                 *counter += 1;
 
-                let area = polygon_area(&p.polygon);
+                let area = p.polygon.area();
                 used_area += area;
 
-                for v in &p.polygon {
+                for v in p.polygon.outer().points() {
                     if v.x > occupied_width {
                         occupied_width = v.x;
                     }
@@ -411,7 +412,7 @@ pub fn is_axis_aligned_rect(p: &crate::domain::Part) -> bool {
         return false;
     }
     // No shape_spec: detect 4-vertex axis-aligned rectangle by polygon.
-    let poly = p.polygon_slice();
+    let poly = p.outer_slice();
     if poly.len() != 4 {
         return false;
     }
@@ -555,7 +556,7 @@ fn snapshot_to_placements(
     cone_strategy_kind: crate::application::cone_strategy::ConeStrategyKind,
     cone_packing_mode: crate::application::cone_strategy::ConePackingMode,
     clearance: f64,
-) -> Vec<Placement> {
+) -> Result<Vec<Placement>, PackError> {
     let mut entries: Vec<&PlacedItem> = snap.placed_items.values().collect();
     entries.sort_by_key(|pi| {
         (
@@ -586,11 +587,8 @@ fn snapshot_to_placements(
         );
 
         let part = &items[pi.item_id];
-        let pack_polygon: Vec<Point2D> = part
-            .polygon_slice()
-            .iter()
-            .map(|p| apply_dtransformation_to_point(&abs_transf, *p))
-            .collect();
+        let part_polygon = transform_part_polygon(part, &abs_transf)?;
+        let pack_polygon = part_polygon.outer().points().to_vec();
 
         // Cones get the strategy's render polygon (e.g. the concave
         // annular crescent for AnnularSector). For cones we also keep
@@ -612,7 +610,7 @@ fn snapshot_to_placements(
                     if cone_packing_mode
                         == crate::application::cone_strategy::ConePackingMode::AnnularSector =>
                 {
-                    (pack_polygon, None)
+                    (part_polygon, None)
                 }
                 Some(d) => match cone_strategy.render_polygon_local(d) {
                     Some(local) => {
@@ -620,26 +618,23 @@ fn snapshot_to_placements(
                             .iter()
                             .map(|p| apply_dtransformation_to_point(&abs_transf, *p))
                             .collect();
-                        (render, Some(pack_polygon))
+                        let render =
+                            Polygon::new(render).map_err(|source| PackError::InvalidPolygon {
+                                shape_id: part.shape_id.clone(),
+                                source,
+                            })?;
+                        (PolygonWithHoles::simple(render), Some(pack_polygon))
                     }
                     // Wedge strategy: render polygon == pack polygon,
                     // no overlay needed (they're the same shape).
-                    None => (pack_polygon, None),
+                    None => (part_polygon, None),
                 },
-                None => (pack_polygon, None),
+                None => (part_polygon, None),
             };
 
-        let (min_x, min_y, max_x, max_y) = polygon.iter().fold(
-            (
-                f64::INFINITY,
-                f64::INFINITY,
-                f64::NEG_INFINITY,
-                f64::NEG_INFINITY,
-            ),
-            |(mnx, mny, mxx, mxy), p| (mnx.min(p.x), mny.min(p.y), mxx.max(p.x), mxy.max(p.y)),
-        );
-        let width = (max_x - min_x).max(0.0);
-        let height = (max_y - min_y).max(0.0);
+        let (min, max) = polygon.bbox();
+        let width = (max.x - min.x).max(0.0);
+        let height = (max.y - min.y).max(0.0);
 
         placements.push(Placement {
             shape_id: part.shape_id.clone(),
@@ -658,7 +653,37 @@ fn snapshot_to_placements(
             pack_polygon: placement_pack_polygon,
         });
     }
-    placements
+    Ok(placements)
+}
+
+fn transform_part_polygon(
+    part: &crate::domain::Part,
+    transform: &DTransformation,
+) -> Result<PolygonWithHoles, PackError> {
+    let outer = transform_points(part.outer_slice(), transform);
+    let outer = Polygon::new(outer).map_err(|source| PackError::InvalidPolygon {
+        shape_id: part.shape_id.clone(),
+        source,
+    })?;
+    let holes = part
+        .holes_iter()
+        .map(|hole| {
+            Polygon::new(transform_points(hole, transform)).map_err(|source| {
+                PackError::InvalidPolygon {
+                    shape_id: part.shape_id.clone(),
+                    source,
+                }
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(PolygonWithHoles::new(outer, holes))
+}
+
+fn transform_points(points: &[Point2D], transform: &DTransformation) -> Vec<Point2D> {
+    points
+        .iter()
+        .map(|p| apply_dtransformation_to_point(transform, *p))
+        .collect()
 }
 
 /// Apply a jagua `DTransformation` (rotate about origin, then translate)
@@ -678,31 +703,25 @@ fn apply_dtransformation_to_point(dt: &DTransformation, p: Point2D) -> Point2D {
     Point2D::new(rx as f64, ry as f64)
 }
 
-fn polygon_area(poly: &[Point2D]) -> f64 {
-    let mut s = 0.0;
-    for i in 0..poly.len() {
-        let a = poly[i];
-        let b = poly[(i + 1) % poly.len()];
-        s += a.x * b.y - b.x * a.y;
-    }
-    s.abs() / 2.0
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::domain::{Bin, BinKind, PackMode, Part};
+    use rf_geom::PolygonWithHoles;
 
     fn rect_part(id: &str, qty: u32, w: f64, h: f64) -> Part {
         Part {
             shape_id: id.into(),
             quantity: qty,
-            polygon: Some(vec![
-                Point2D::new(0.0, 0.0),
-                Point2D::new(w, 0.0),
-                Point2D::new(w, h),
-                Point2D::new(0.0, h),
-            ]),
+            polygon: Some(
+                PolygonWithHoles::from_outer_points(vec![
+                    Point2D::new(0.0, 0.0),
+                    Point2D::new(w, 0.0),
+                    Point2D::new(w, h),
+                    Point2D::new(0.0, h),
+                ])
+                .expect("rect polygon"),
+            ),
             shape_spec: None,
             allow_rotation: true,
             grain_axis: None,

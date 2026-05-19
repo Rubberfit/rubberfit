@@ -139,7 +139,8 @@ fn run_scenario(
                     off.y + MARGIN + (iy as f64 * SAMPLE_STEP).min(inner_h),
                 );
                 for (pi, place) in result.placements.iter().enumerate() {
-                    if ray_cast_point_in_polygon(p, &place.polygon) {
+                    let outer = place.polygon.outer().points();
+                    if ray_cast_point_in_polygon(p, outer) {
                         violations.push(format!(
                             "seed={} offcut[{}] rect=({:.3},{:.3} {:.3}×{:.3}) sample=({:.3},{:.3}) is INSIDE placement[{}] shape={} verts={}",
                             seed,
@@ -148,7 +149,7 @@ fn run_scenario(
                             p.x, p.y,
                             pi,
                             place.shape_id,
-                            place.polygon.len(),
+                            outer.len(),
                         ));
                     }
                 }
@@ -160,8 +161,9 @@ fn run_scenario(
         println!("=== seed={} ===", seed);
         println!("--- {} placement(s) ---", result.placements.len());
         for (i, p) in result.placements.iter().enumerate() {
-            let xs = p.polygon.iter().map(|q| q.x);
-            let ys = p.polygon.iter().map(|q| q.y);
+            let outer = p.polygon.outer().points();
+            let xs = outer.iter().map(|q| q.x);
+            let ys = outer.iter().map(|q| q.y);
             let min_x = xs.clone().fold(f64::INFINITY, f64::min);
             let max_x = xs.fold(f64::NEG_INFINITY, f64::max);
             let min_y = ys.clone().fold(f64::INFINITY, f64::min);
@@ -175,7 +177,7 @@ fn run_scenario(
                 max_x,
                 max_y,
                 p.rotation_rad,
-                p.polygon.len()
+                outer.len()
             );
         }
         println!(

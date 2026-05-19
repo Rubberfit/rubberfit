@@ -15,7 +15,7 @@ import {
 import type { Permission } from "@/src/application/permissions"
 
 export interface NavSubItem {
-  title: string
+  titleKey: string
   url: string
   icon?: LucideIcon
   comingSoon?: boolean
@@ -25,7 +25,7 @@ export interface NavSubItem {
 }
 
 export interface NavMainItem {
-  title: string
+  titleKey: string
   url: string
   icon?: LucideIcon
   subItems?: NavSubItem[]
@@ -37,23 +37,23 @@ export interface NavMainItem {
 
 export interface NavGroup {
   id: number
-  label?: string
+  labelKey?: string
   items: NavMainItem[]
 }
 
 export const sidebarItems: NavGroup[] = [
   {
     id: 1,
-    label: "Operations",
+    labelKey: "groups.operations",
     items: [
       {
-        title: "Dashboard",
+        titleKey: "items.dashboard.title",
         url: "/dashboard",
         icon: LayoutDashboard,
         // No permission required — all authenticated users see the dashboard
       },
       {
-        title: "Inventory",
+        titleKey: "items.inventory.title",
         url: "/dashboard/inventory",
         icon: Package,
         requiredPermission: "viewInventory",
@@ -64,39 +64,39 @@ export const sidebarItems: NavGroup[] = [
         // links, just not promoted in the sidebar.
         subItems: [
           {
-            title: "Current Stock",
+            titleKey: "items.inventory.subItems.currentStock",
             url: "/dashboard/inventory",
           },
           {
-            title: "Purchase Orders",
+            titleKey: "items.inventory.subItems.purchaseOrders",
             url: "/dashboard/inventory/purchase-orders",
             requiredPermission: "manageRolls",
           },
         ],
       },
       {
-        title: "Jobs",
+        titleKey: "items.jobs.title",
         url: "/dashboard/jobs",
         icon: ClipboardList,
       },
       {
-        title: "Cutting Engine",
+        titleKey: "items.cuttingEngine.title",
         url: "/dashboard/cutting-engine",
         icon: Scissors,
         requiredPermission: "accessCutPlanner",
         subItems: [
           {
-            title: "Auto nest",
+            titleKey: "items.cuttingEngine.subItems.autoNest",
             url: "/dashboard/cutting-engine",
           },
           {
-            title: "Free roam",
+            titleKey: "items.cuttingEngine.subItems.freeRoam",
             url: "/dashboard/cutting-engine/free-roam",
           },
         ],
       },
       {
-        title: "Cut History",
+        titleKey: "items.cutHistory.title",
         url: "/dashboard/history",
         icon: History,
         requiredPermission: "viewCutHistory",
@@ -105,36 +105,36 @@ export const sidebarItems: NavGroup[] = [
   },
   {
     id: 2,
-    label: "Analytics",
+    labelKey: "groups.analytics",
     items: [
       {
-        title: "Analytics",
+        titleKey: "items.analytics.title",
         url: "/dashboard/analytics/waste",
         icon: BarChart3,
         requiredPermission: "accessAnalytics",
         subItems: [
           {
-            title: "Waste",
+            titleKey: "items.analytics.subItems.waste",
             url: "/dashboard/analytics/waste",
             requiredPermission: "viewCurrentAnalysis",
           },
           {
-            title: "Period comparison",
+            titleKey: "items.analytics.subItems.periodComparison",
             url: "/dashboard/analytics/waste-comparison",
             requiredPermission: "viewPeriodConsumption",
           },
           {
-            title: "Material usage",
+            titleKey: "items.analytics.subItems.materialUsage",
             url: "/dashboard/analytics/usage",
             requiredPermission: "viewMaterialUsage",
           },
           {
-            title: "Cost reports",
+            titleKey: "items.analytics.subItems.costReports",
             url: "/dashboard/analytics/costs",
             requiredPermission: "viewCostReports",
           },
           {
-            title: "Trends",
+            titleKey: "items.analytics.subItems.trends",
             url: "/dashboard/analytics/trends",
             requiredPermission: "viewTrends",
           },
@@ -144,44 +144,44 @@ export const sidebarItems: NavGroup[] = [
   },
   {
     id: 3,
-    label: "Management",
+    labelKey: "groups.management",
     items: [
       {
-        title: "Materials",
+        titleKey: "items.materials.title",
         url: "/dashboard/inventory/materials",
         icon: Database,
         requiredPermission: "accessManagement",
         subItems: [
           {
-            title: "Material Settings",
+            titleKey: "items.materials.subItems.materialSettings",
             url: "/dashboard/settings/materials",
             requiredPermission: "manageMaterialTypes",
           },
           {
-            title: "Material Types",
+            titleKey: "items.materials.subItems.materialTypes",
             url: "/dashboard/inventory/materials/types",
             requiredPermission: "manageMaterialTypes",
           },
           {
-            title: "Suppliers",
+            titleKey: "items.materials.subItems.suppliers",
             url: "/dashboard/inventory/materials/suppliers",
             requiredPermission: "manageSuppliers",
           },
           {
-            title: "Pricing",
+            titleKey: "items.materials.subItems.pricing",
             url: "/dashboard/inventory/materials/pricing",
             requiredPermission: "managePricing",
           },
         ],
       },
       {
-        title: "Reports",
+        titleKey: "items.reports.title",
         url: "/dashboard/analytics/reports",
         icon: FileText,
         requiredPermission: "viewReports",
       },
       {
-        title: "Users",
+        titleKey: "items.users.title",
         url: "/dashboard/users",
         icon: Users,
         requiredPermission: "manageUsers",
@@ -190,7 +190,7 @@ export const sidebarItems: NavGroup[] = [
         // Phase 2 PR 5 admin-only Security & Audit page.
         // Distinct from the customer-facing /dashboard/security page in
         // group 4, which stays ungated for procurement reviewers.
-        title: "Security & Audit",
+        titleKey: "items.securityAudit.title",
         url: "/dashboard/admin/security",
         icon: ShieldCheck,
         requiredPermission: "manageUsers",
@@ -209,22 +209,31 @@ export const sidebarItems: NavGroup[] = [
         requiredPermission: "manageUsers",
         subItems: [
           {
-            title: "General",
+            titleKey: "items.settings.subItems.general",
             url: "/dashboard/settings/general",
             requiredPermission: "manageUsers",
           },
           {
-            title: "Profile & account",
+            titleKey: "items.settings.subItems.profile",
             url: "/dashboard/settings/profile",
           },
           {
-            title: "Materials",
+            titleKey: "items.settings.subItems.materials",
             url: "/dashboard/settings/materials",
             requiredPermission: "manageMaterialTypes",
           },
           {
-            title: "Notifications",
+            titleKey: "items.settings.subItems.notifications",
             url: "/dashboard/settings/notifications",
+          },
+          {
+            titleKey: "items.settings.subItems.team",
+            url: "/dashboard/settings/team",
+          },
+          {
+            titleKey: "items.settings.subItems.billing",
+            url: "/dashboard/settings/billing",
+            requiredPermission: "manageUsers",
           },
         ],
       },
@@ -232,13 +241,13 @@ export const sidebarItems: NavGroup[] = [
   },
   {
     id: 4,
-    label: "Q&A",
+    labelKey: "groups.qa",
     items: [
       {
         // Intentionally ungated — IT / procurement reviewers invited as
         // viewers should be able to read the Trust & Security surface
         // directly without being handed an elevated account.
-        title: "Security",
+        titleKey: "items.security.title",
         url: "/dashboard/security",
         icon: ShieldCheck,
       },

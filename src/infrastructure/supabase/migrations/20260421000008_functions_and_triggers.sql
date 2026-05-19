@@ -658,3 +658,56 @@ COMMENT ON FUNCTION get_tax_rate_details(varchar, varchar, varchar) IS
 
 GRANT EXECUTE ON FUNCTION get_tax_rate_details(varchar, varchar, varchar)
   TO authenticated;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Auto-provision triggers — keep the invariant "every tenant has settings,
+-- every profile has preferences" without making each call site remember.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE FUNCTION provision_tenant_settings()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO tenant_settings (tenant_id)
+  VALUES (NEW.id)
+  ON CONFLICT (tenant_id) DO NOTHING;
+  RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION provision_tenant_settings() IS
+  'Trigger function: auto-create the matching tenant_settings row when a tenant is inserted. SECURITY DEFINER so it bypasses RLS for end-user-driven tenant creation.';
+
+CREATE TRIGGER trg_tenants_provision_settings
+  AFTER INSERT ON tenants
+  FOR EACH ROW EXECUTE FUNCTION provision_tenant_settings();
+
+
+CREATE OR REPLACE FUNCTION provision_user_preferences()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO user_preferences (profile_id)
+  VALUES (NEW.id)
+  ON CONFLICT (profile_id) DO NOTHING;
+  RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION provision_user_preferences() IS
+  'Trigger function: auto-create the matching user_preferences row when a profile is inserted. SECURITY DEFINER so it bypasses RLS even when the profile is created by an end-user signup flow.';
+
+CREATE TRIGGER trg_profiles_provision_preferences
+  AFTER INSERT ON profiles
+  FOR EACH ROW EXECUTE FUNCTION provision_user_preferences();
+
+
+-- stripe_events: updated_at bump trigger
+CREATE TRIGGER trg_stripe_events_updated_at  BEFORE UPDATE ON stripe_events  FOR EACH ROW EXECUTE FUNCTION set_updated_at();

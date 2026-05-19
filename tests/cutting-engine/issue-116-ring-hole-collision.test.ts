@@ -1,17 +1,18 @@
 /**
- * Regression tests for the ring-hole collision exception (issue #116).
+ * Regression tests for the hole-as-void collision exception (issue
+ * #116, generalized in PR 0b).
  *
- * Rings are stored with the OUTER polygon only — the registry comment
- * in `shape-registry.ts` says collision treats a hit inside the inner
- * hole as overlapping the part. That made it impossible to drop a
- * smaller part inside a ring's hole even though physically the hole is
- * empty space.
+ * Rings are stored with an OUTER polygon plus an explicit inner-hole
+ * loop (`PartTemplate.holes`). The collision code's hole exception
+ * fires when SAT reports overlap with a host placement but the
+ * candidate sits fully inside one of the host's hole loops — the
+ * candidate is in the void, not on the part's body.
  *
- * The fix in `free-roam-collision.ts` adds an exception: when SAT
- * reports overlap with a ring placement but every vertex of the
- * candidate polygon lies inside the ring's `innerRadius`, the
- * placement is accepted (the candidate fits in the hole, not the
- * ring's body).
+ * Pre-PR-0b this was implemented as a ring-specific check against
+ * `template.innerRadius`. The generalization replaces that with a
+ * polygon-general point-in-polygon + edge-intersection test against
+ * `template.holes`, which works for full-face gaskets, bolt-circle
+ * patterns, and CAD-imported multi-loop shapes too.
  */
 import { describe, expect, it } from "vitest"
 import { wouldCollide } from "@/app/dashboard/cutting-engine/_components/free-roam-collision"
@@ -19,8 +20,22 @@ import type { ManualPlacement } from "@/app/dashboard/cutting-engine/_components
 import type { PartTemplate } from "@/app/dashboard/cutting-engine/_components/preset-template-data"
 import { circleToPolygon } from "@/nesting/shape-to-polygon"
 
+function centeredCircle(diameter: number, bboxSide: number, segments: number) {
+  // Same convention as shape-registry's centerCircleInBbox helper —
+  // centers the circle at (bboxSide/2, bboxSide/2) so it lines up
+  // with the outer ring's bbox-anchored coords.
+  const cx = bboxSide / 2
+  const cy = bboxSide / 2
+  const r = diameter / 2
+  return Array.from({ length: segments }, (_, i) => {
+    const angle = (2 * Math.PI * i) / segments
+    return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) }
+  })
+}
+
 function ringTemplate(id: string, outerDiameter: number, innerDiameter: number): PartTemplate {
-  // Mirrors the shape registry's ring builder.
+  // Mirrors the shape registry's ring builder post-PR-0b: outer
+  // polygon + explicit inner hole loop.
   return {
     id,
     partType: "cylinder",
@@ -34,7 +49,10 @@ function ringTemplate(id: string, outerDiameter: number, innerDiameter: number):
     innerRadius: innerDiameter / 2,
     outerRadius: outerDiameter / 2,
     renderShape: "ring",
-    polygon: circleToPolygon(outerDiameter, 48),
+    polygon: {
+      outer: circleToPolygon(outerDiameter, 48),
+      holes: [centeredCircle(innerDiameter, outerDiameter, 48)],
+    },
   }
 }
 

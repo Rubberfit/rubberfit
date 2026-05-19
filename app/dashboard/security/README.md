@@ -33,7 +33,7 @@ account to scan it directly.
 - **contact-card.tsx** -- Closing card listing the three
   artifacts prospects will ask for (DPA, security
   questionnaire responses, vulnerability disclosure) behind
-  one `security@arcandanchor.com` inbox.
+  one `support@rubberfit.app` inbox.
 
 ## Why no permission gate
 

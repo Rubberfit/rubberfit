@@ -1,10 +1,21 @@
 import { jsPDF } from "jspdf"
 
+import { SIGNAL, RULE, INK, SLATE, TYPE, WHITE } from "@/app/lib/pdf"
 import { makeAdminClient } from "@/app/api/_lib/supabase-server"
 import {
   getPublicRollByPartNumberOrId,
   type PublicRoll,
 } from "@/src/infrastructure/services/rollService"
+import {
+  getOrgPreferencesForRoll,
+  type OrgPrintPreferencesInput,
+} from "@/src/infrastructure/services/cut-pdf-prefs-lookup"
+import {
+  formatAreaSqft,
+  formatLengthInches,
+  formatDimensionsInches,
+} from "@/src/application/preferences/user-unit-display"
+import { formatUserDate, formatUserDateTime } from "@/src/application/preferences/user-date-format"
 
 export const dynamic = "force-dynamic"
 
@@ -18,11 +29,27 @@ async function loadRoll(partNumber: string): Promise<PublicRoll | null> {
   return getPublicRollByPartNumberOrId(client, partNumber)
 }
 
-function formatDate(value: string | null): string {
-  if (!value) return "—"
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "—"
-  return date.toLocaleDateString()
+/**
+ * Resolve the roll's organization print preferences (best-effort).
+ * Returns undefined on any error so the PDF still renders with
+ * imperial / `MM/dd/yyyy` / `America/Chicago` defaults — the public
+ * scan endpoint must never 500 on a missing prefs row.
+ *
+ * `getOrgPreferencesForRoll` already wraps its DB calls in a
+ * try/catch internally, but `makeAdminClient()` can theoretically
+ * throw on env-var misconfiguration; the outer try/catch matches the
+ * doc-comment contract and protects against any future change to
+ * the helper that could raise (CodeRabbit catch).
+ */
+async function loadPrintPrefs(rollId: string): Promise<OrgPrintPreferencesInput | undefined> {
+  try {
+    const client = makeAdminClient()
+    if (!client) return undefined
+    return await getOrgPreferencesForRoll(client, rollId)
+  } catch (error) {
+    console.error("[scanRoute] failed to resolve org print prefs for roll", { rollId, error })
+    return undefined
+  }
 }
 
 /**
@@ -49,7 +76,8 @@ function drawRollDiagram(
   boxX: number,
   boxY: number,
   boxW: number,
-  boxH: number
+  boxH: number,
+  prefs: OrgPrintPreferencesInput | undefined
 ): void {
   const TOP_GUTTER = 18
   const RIGHT_GUTTER = 32
@@ -89,17 +117,20 @@ function drawRollDiagram(
   doc.setLineWidth(1)
   doc.rect(ox, oy, drawW, drawH, "S")
 
-  // Dimension labels
+  // Dimension labels — width along the top, length along the right.
+  // PR 2e: use formatLengthInches so a metric org gets cm labels here
+  // too, matching the row table below.
   doc.setFont("helvetica", "normal")
   doc.setFontSize(9)
   doc.setTextColor(75, 85, 99) // gray-600
-  doc.text(`${widthIn}"`, ox + drawW / 2, oy - 6, { align: "center" })
-  doc.text(`${lengthIn}"`, ox + drawW + 6, oy + drawH / 2 + 3)
+  doc.text(formatLengthInches(widthIn, prefs), ox + drawW / 2, oy - 6, { align: "center" })
+  doc.text(formatLengthInches(lengthIn, prefs), ox + drawW + 6, oy + drawH / 2 + 3)
 
   // Remaining % inside the amber zone when it's tall enough to read.
   if (remainingH >= 14) {
     const pct = Math.round((safeRemaining / lengthIn) * 100)
-    const label = isOffcut ? `${safeRemaining}" available` : `${safeRemaining}" (${pct}%)`
+    const remainingLabel = formatLengthInches(safeRemaining, prefs)
+    const label = isOffcut ? `${remainingLabel} available` : `${remainingLabel} (${pct}%)`
     doc.setFont("helvetica", "bold")
     doc.setFontSize(11)
     doc.setTextColor(120, 53, 15) // amber-900
@@ -120,54 +151,70 @@ function drawRollDiagram(
   }
 }
 
-function buildScanPdf(roll: PublicRoll): jsPDF {
+function buildScanPdf(roll: PublicRoll, prefs: OrgPrintPreferencesInput | undefined): jsPDF {
   const doc = new jsPDF({ unit: "pt", format: "letter" })
   const pageWidth = doc.internal.pageSize.getWidth()
   let y = 72
   doc.setProperties({ title: `Rubberfit · ${roll.part_number ?? roll.id}` })
 
-  doc.setFillColor(37, 99, 235)
+  // Brand-blue header bar — single mark on the page. Phase 7 tokens.
+  doc.setFillColor(SIGNAL[0], SIGNAL[1], SIGNAL[2])
   doc.rect(0, 0, pageWidth, 48, "F")
-  doc.setTextColor(255, 255, 255)
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(18)
+  doc.setTextColor(WHITE[0], WHITE[1], WHITE[2])
+  doc.setFont(TYPE.h1.family, TYPE.h1.weight)
+  doc.setFontSize(TYPE.h1.size)
   doc.text("Rubberfit", 40, 32)
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(10)
+  doc.setFont(TYPE.body.family, TYPE.body.weight)
+  doc.setFontSize(TYPE.body.size)
   doc.text("Roll Info", pageWidth - 40, 32, { align: "right" })
 
-  doc.setTextColor(17, 24, 39)
-  doc.setFont("courier", "bold")
+  doc.setTextColor(INK[0], INK[1], INK[2])
+  doc.setFont(TYPE.mono.family, "bold")
   doc.setFontSize(28)
   doc.text(roll.part_number ?? `ID ${roll.id.slice(0, 8).toUpperCase()}`, 40, (y += 16))
-  doc.setFont("helvetica", "bold")
+  doc.setFont(TYPE.h2.family, TYPE.h2.weight)
   doc.setFontSize(16)
   doc.text(roll.material_type, 40, (y += 22))
 
   if (roll.color) {
-    doc.setFont("helvetica", "normal")
+    doc.setFont(TYPE.body.family, TYPE.body.weight)
     doc.setFontSize(11)
-    doc.setTextColor(107, 114, 128)
+    doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
     doc.text(roll.color, 40, (y += 16))
-    doc.setTextColor(17, 24, 39)
+    doc.setTextColor(INK[0], INK[1], INK[2])
   }
 
   y += 18
-  doc.setDrawColor(229, 231, 235)
+  doc.setDrawColor(RULE[0], RULE[1], RULE[2])
   doc.line(40, y, pageWidth - 40, y)
   y += 20
 
+  // PR 2e: dimensions, remaining length, and available area all flow
+  // through the unit helpers so a metric-org operator sees `cm` / `m²`
+  // on a scanned label instead of hardcoded imperial. Date row uses
+  // formatUserDate to honor the operator's `dateFormat`.
+  // Clamp remaining length to [0, roll.length] so a row with drifted
+  // data (negative remaining, or remaining > length from a bad import)
+  // can't render a negative length, an over-100% percentage, or an
+  // available area that contradicts the diagram — the diagram's own
+  // `safeRemaining` already clamps, and the table must agree
+  // (CodeRabbit catch — drift symmetry across the page).
+  const lengthGuard = Math.max(roll.length, 0.0001)
+  const safeRemainingLength = Math.max(0, Math.min(roll.remaining_length, lengthGuard))
+  const safeWidth = Math.max(roll.width, 0)
+  const remainingLengthLabel = formatLengthInches(safeRemainingLength, prefs)
+  const availableSqft = (safeRemainingLength * safeWidth) / 144
   const rows: Array<[string, string]> = [
     ["Part number", roll.part_number ?? roll.id],
-    ["Dimensions", `${roll.width}" × ${roll.length}" × ${roll.thickness}"`],
+    ["Dimensions", formatDimensionsInches([roll.width, roll.length, roll.thickness], prefs)],
     [
       "Remaining length",
-      `${roll.remaining_length}"  (${((roll.remaining_length / Math.max(roll.length, 0.0001)) * 100).toFixed(0)}%)`,
+      `${remainingLengthLabel}  (${((safeRemainingLength / lengthGuard) * 100).toFixed(0)}%)`,
     ],
-    ["Available area", `${((roll.remaining_length * roll.width) / 144).toFixed(2)} sq ft`],
+    ["Available area", formatAreaSqft(availableSqft, prefs)],
     ["Status", roll.status],
     ["Location", roll.location ?? "—"],
-    ["Date received", formatDate(roll.date_received)],
+    ["Date received", formatUserDate(roll.date_received, prefs) || "—"],
     ["Type", roll.is_offcut ? "Reusable offcut" : "Primary roll"],
   ]
 
@@ -175,24 +222,28 @@ function buildScanPdf(roll: PublicRoll): jsPDF {
   // can align its top with the first row.
   const rowsStartY = y
 
-  doc.setFontSize(10)
+  doc.setFontSize(TYPE.body.size)
   for (const [label, value] of rows) {
-    doc.setFont("helvetica", "bold")
-    doc.setTextColor(107, 114, 128)
+    doc.setFont(TYPE.caption.family, TYPE.caption.weight)
+    doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
     doc.text(label.toUpperCase(), 40, y)
-    doc.setFont("helvetica", "normal")
-    doc.setTextColor(17, 24, 39)
+    doc.setFont(TYPE.body.family, TYPE.body.weight)
+    doc.setTextColor(INK[0], INK[1], INK[2])
     doc.text(value, 180, y)
     y += 20
   }
 
   // Glance-view roll diagram in the right half of the page, aligned
   // with the top of the info rows.
-  drawRollDiagram(doc, roll, 320, rowsStartY - 10, pageWidth - 320 - 40, 260)
+  drawRollDiagram(doc, roll, 320, rowsStartY - 10, pageWidth - 320 - 40, 260, prefs)
 
-  doc.setFontSize(8)
-  doc.setTextColor(107, 114, 128)
-  doc.text(`Generated ${new Date().toLocaleString()}`, 40, doc.internal.pageSize.getHeight() - 30)
+  doc.setFontSize(TYPE.caption.size)
+  doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
+  doc.text(
+    `Generated ${formatUserDateTime(new Date(), prefs) || "—"}`,
+    40,
+    doc.internal.pageSize.getHeight() - 30
+  )
   doc.text("rubberfit.com", pageWidth - 40, doc.internal.pageSize.getHeight() - 30, {
     align: "right",
   })
@@ -208,7 +259,8 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
     return new Response("Not Found", { status: 404 })
   }
 
-  const pdfBytes = buildScanPdf(roll).output("arraybuffer")
+  const prefs = await loadPrintPrefs(roll.id)
+  const pdfBytes = buildScanPdf(roll, prefs).output("arraybuffer")
   const fileName = `${(roll.part_number ?? roll.id).replace(/[^A-Za-z0-9._-]/g, "_")}_info.pdf`
 
   return new Response(pdfBytes, {

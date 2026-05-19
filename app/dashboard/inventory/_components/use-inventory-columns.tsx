@@ -14,6 +14,13 @@ import {
 } from "@/app/components/ui/dropdown-menu"
 import { StatusBadge, type StatusIntent } from "@/app/components/patterns"
 import type { ColumnDef } from "@/app/components/patterns/data-table"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import {
+  formatAreaSqft,
+  formatDimensionsInches,
+  formatLengthInches,
+  type UnitDisplayPreferencesInput,
+} from "@/src/application/preferences/user-unit-display"
 
 interface UseInventoryColumnsArgs {
   canManageRolls: boolean
@@ -22,9 +29,13 @@ interface UseInventoryColumnsArgs {
   onDelete: (rollId: string) => void
 }
 
-function formatSqft(remainingLength: number, width: number): string {
+function formatRemainingArea(
+  remainingLength: number,
+  width: number,
+  unitPreferences: UnitDisplayPreferencesInput
+): string {
   if (!Number.isFinite(remainingLength) || !Number.isFinite(width)) return "—"
-  return `${((remainingLength * width) / 144).toFixed(1)} sqft`
+  return formatAreaSqft((remainingLength * width) / 144, unitPreferences, { precision: 1 })
 }
 
 function statusIntent(status: string | null | undefined): StatusIntent {
@@ -45,6 +56,7 @@ export function useInventoryColumns({
   onDeplete,
   onDelete,
 }: UseInventoryColumnsArgs): ColumnDef<Roll>[] {
+  const organizationPreferences = useOrganizationPreferences()
   return useMemo<ColumnDef<Roll>[]>(
     () => [
       {
@@ -79,8 +91,12 @@ export function useInventoryColumns({
         id: "dimensions",
         header: "Dimensions (W × L × T)",
         cell: (roll) => (
-          <span className="font-mono text-muted-foreground text-xs">
-            {roll.width}″ × {roll.length}″ × {roll.thickness}″
+          <span className="font-mono text-muted-foreground text-xs tabular-nums">
+            {formatDimensionsInches(
+              [roll.width, roll.length, roll.thickness],
+              organizationPreferences,
+              { precision: 3 }
+            )}
           </span>
         ),
       },
@@ -89,9 +105,11 @@ export function useInventoryColumns({
         header: "Remaining",
         cell: (roll) => (
           <div className="flex flex-col">
-            <span className="text-foreground text-sm">{roll.remaining_length}″</span>
-            <span className="text-muted-foreground text-[11px]">
-              {formatSqft(roll.remaining_length, roll.width)}
+            <span className="text-foreground text-sm tabular-nums">
+              {formatLengthInches(roll.remaining_length, organizationPreferences)}
+            </span>
+            <span className="text-muted-foreground text-[11px] tabular-nums">
+              {formatRemainingArea(roll.remaining_length, roll.width, organizationPreferences)}
             </span>
           </div>
         ),
@@ -123,9 +141,7 @@ export function useInventoryColumns({
         // returning 0 would place them at the year-1970 epoch and
         // bunch them above the older real dates on ascending sorts.
         sortFn: (roll) =>
-          roll.date_received
-            ? new Date(roll.date_received).getTime()
-            : Number.MIN_SAFE_INTEGER,
+          roll.date_received ? new Date(roll.date_received).getTime() : Number.MIN_SAFE_INTEGER,
         defaultSort: "desc",
       },
       ...(canManageRolls
@@ -175,6 +191,6 @@ export function useInventoryColumns({
           ]
         : []),
     ],
-    [canManageRolls, onEdit, onDeplete, onDelete]
+    [canManageRolls, onEdit, onDeplete, onDelete, organizationPreferences]
   )
 }

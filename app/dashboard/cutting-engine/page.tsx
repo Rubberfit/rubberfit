@@ -16,6 +16,7 @@ import PresetDimensionSelector, {
 } from "./_components/PresetDimensionSelector"
 import CutListUpload from "./_components/cut-list-upload"
 import type { ExtractedPart } from "@/src/application/vision/types"
+import type { DxfImportedPart } from "@/src/application/cad/dxf-types"
 import type { SimpleCutDirection } from "./_components/NestingVisualizer"
 import type { SimpleCutMetrics } from "./_components/nesting-visualizer-types"
 import {
@@ -39,6 +40,7 @@ import { authService } from "@/src/infrastructure/services/authService"
 import { saveCut } from "@/app/actions/cut-history"
 import { buildAndUploadCutPdf } from "./_components/cut-history-pdf"
 import type { LayoutModel } from "./_components/layout-model"
+import { CURRENT_LAYOUT_JSON_VERSION } from "@/src/infrastructure/models/cut-history-layout"
 import { CutLoader } from "./_components/cut-loader"
 import { RollLoader } from "./_components/roll-loader"
 import { JobLoader } from "./_components/job-loader"
@@ -54,6 +56,7 @@ import {
   estimateTotalPartAreaSqIn,
 } from "./_components/auto-fill-bin-allocator"
 import type { Bin, Part } from "@/src/application/packing/types"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
 
 // Constants
 
@@ -101,6 +104,17 @@ function buildFrozenLayoutInputSignature(
       outerRadius: finiteOrNull(template.outerRadius),
       arcDegrees: finiteOrNull(template.arcDegrees),
       partNumber: template.partNumber ?? null,
+      polygon: template.polygon
+        ? {
+            outer: template.polygon.outer.map((p) => ({
+              x: finiteOrNull(p.x),
+              y: finiteOrNull(p.y),
+            })),
+            holes: template.polygon.holes.map((hole) =>
+              hole.map((p) => ({ x: finiteOrNull(p.x), y: finiteOrNull(p.y) }))
+            ),
+          }
+        : null,
     })),
   })
 }
@@ -113,6 +127,7 @@ function LayoutLabel() {
 
 // eslint-disable-next-line max-lines-per-function
 function CutPlannerPageInner() {
+  const organizationPreferences = useOrganizationPreferences()
   const [presetParts, setPresetParts] = useState<PartTemplate[]>([])
   const [uploadedParts, setUploadedParts] = useState<PartTemplate[]>([])
   const [cutDirection, setCutDirection] = useState<SimpleCutDirection>("vertical_split")
@@ -366,6 +381,32 @@ function CutPlannerPageInner() {
     if (stockWidth && stockWidth > 0) {
       setStock((prev) => ({ ...prev, width: stockWidth }))
     }
+  }
+
+  const handleDxfPartConfirmed = (part: DxfImportedPart) => {
+    // Convert mm → inches at confirm-time so all downstream math
+    // (preset-utils area, bin estimator, packing) operates in inches
+    // — see preset-utils.ts:getTemplateAreaSqFt's polygon case.
+    const scale = part.units === "mm" ? 1 / 25.4 : 1
+    const inchPolygon: PartTemplate["polygon"] = {
+      outer: part.polygon.outer.map((p) => ({ x: p.x * scale, y: p.y * scale })),
+      holes: part.polygon.holes.map((hole) =>
+        hole.map((p) => ({ x: p.x * scale, y: p.y * scale }))
+      ),
+    }
+    const template: PartTemplate = {
+      id: `dxf-${crypto.randomUUID()}`,
+      partType: "polygon",
+      label: part.partNumber,
+      summary: `DXF: ${part.sourceFile}`,
+      quantity: part.quantity,
+      category: "custom",
+      polygon: inchPolygon,
+      partNumber: part.partNumber,
+      sourceFile: part.sourceFile,
+      isCustom: true,
+    }
+    setUploadedParts((prev) => [...prev, template])
   }
 
   const removeUploadedPart = (id: string) => {
@@ -630,7 +671,8 @@ function CutPlannerPageInner() {
           selectedTemplate,
           selectedTemplates,
           pdfTagMap,
-          layouts
+          layouts,
+          organizationPreferences
         )
         pdfUploaded = url != null
       } catch (err) {
@@ -676,7 +718,7 @@ function CutPlannerPageInner() {
         // re-packing from scratch. Field is optional server-side so a
         // missing column (old DBs) doesn't break the insert.
         layout_json: {
-          version: 1,
+          version: CURRENT_LAYOUT_JSON_VERSION,
           kind: "auto",
           perTemplateQuantities: selectedTemplates.map((t) => t.quantity ?? 1),
           // Issue #126: persist per-template partType so mixed-shape
@@ -729,6 +771,7 @@ function CutPlannerPageInner() {
     layouts,
     sourceRollId,
     sourceJob?.id,
+    organizationPreferences,
   ])
 
   // Render
@@ -790,7 +833,10 @@ function CutPlannerPageInner() {
         </InlineNotice>
       ) : null}
 
-      <CutListUpload onPartsConfirmed={handleUploadedParts} />
+      <CutListUpload
+        onPartsConfirmed={handleUploadedParts}
+        onDxfPartConfirmed={handleDxfPartConfirmed}
+      />
 
       {uploadedParts.length > 0 && (
         <Card className="border border-slate-200 shadow-sm">
@@ -926,6 +972,8 @@ function CutPlannerPageInner() {
                 isPacking={isPacking}
                 isAutoBoostPending={isAutoBoostPending}
                 debugOverlays={debugOverlays}
+                packError={packError}
+                onRetryPack={requestPack}
               />
             </CardContent>
           </Card>

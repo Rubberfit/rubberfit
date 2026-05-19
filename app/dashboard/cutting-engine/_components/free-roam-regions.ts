@@ -85,8 +85,8 @@ export function placementToSheetPolygon(
   // Shape-registry templates carry a pre-built local polygon —
   // triangle, ellipse, n-gon, star, ring, custom. Use it directly
   // so the waste math hugs the actual shape instead of a rect.
-  if (template.polygon && template.polygon.length >= 3) {
-    return rotateAndTranslate(template.polygon)
+  if (template.polygon && template.polygon.outer.length >= 3) {
+    return rotateAndTranslate(template.polygon.outer)
   }
 
   if (template.partType === "cylinder" && template.diameter) {
@@ -213,8 +213,8 @@ export function computeEnvelopeWasteForPlacement(
   // Resolve the local-coords shape outline. Rectangles return early —
   // their envelope IS the shape, so the difference is empty.
   let localShape: Point2D[]
-  if (template.polygon && template.polygon.length >= 3) {
-    localShape = template.polygon
+  if (template.polygon && template.polygon.outer.length >= 3) {
+    localShape = template.polygon.outer
   } else if (template.partType === "cylinder" && template.diameter) {
     localShape = circleToPolygon(template.diameter, 24)
   } else {

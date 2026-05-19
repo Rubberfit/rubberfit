@@ -14,6 +14,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/app/components/ui/sheet"
+import { getBrandedPdfCompanyName } from "@/app/actions/branding"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import { DEFAULT_PDF_COMPANY_NAME } from "@/src/application/billing/pdf-branding"
 import { authService } from "@/src/infrastructure/services/authService"
 import { JOB_PDF_SHARE_TTL_SECONDS, uploadJobPdf } from "@/src/infrastructure/services/jobService"
 import type { JobFullDetail } from "@/src/infrastructure/models/supabase"
@@ -55,6 +58,7 @@ function formatExpiryHint(expiresAt: string): string {
 }
 
 export function JobShareLinkSheet({ open, onOpenChange, job }: JobShareLinkSheetProps) {
+  const organizationPreferences = useOrganizationPreferences()
   const [status, setStatus] = useState<"idle" | "working" | "ready" | "error">("idle")
   const [signedUrl, setSignedUrl] = useState<string | null>(null)
   const [expiresAt, setExpiresAt] = useState<string | null>(null)
@@ -72,10 +76,25 @@ export function JobShareLinkSheet({ open, onOpenChange, job }: JobShareLinkSheet
     setStatus("working")
     setErrorMsg(null)
     try {
+      // Branding is Pro+ — Standard tier silently falls back to the
+      // default product name. The action returns a discriminated
+      // result (Next.js strips custom error properties on the
+      // server-action serialization boundary, so a thrown
+      // FeatureLockedError isn't reliably detectable client-side).
+      let companyName = DEFAULT_PDF_COMPANY_NAME
+      try {
+        const branding = await getBrandedPdfCompanyName()
+        if (branding.ok) {
+          companyName = branding.companyName
+        }
+      } catch (err) {
+        console.error("[JobShareLinkSheet] branded-name fetch failed:", err)
+      }
       // Build the PDF client-side so we don't round-trip the job
       // data through a server action just to render a document the
-      // browser already has all the pieces for.
-      const blob = buildJobPdfBlob(job, { companyName: "Rubberfit" })
+      // browser already has all the pieces for. Customer-facing
+      // output renders in operator prefs (2026-05-14 ruling).
+      const blob = buildJobPdfBlob(job, { companyName, organizationPreferences })
       const user = await authService.getCurrentUser()
       if (!user) {
         throw new Error("Sign in before sharing job PDFs")

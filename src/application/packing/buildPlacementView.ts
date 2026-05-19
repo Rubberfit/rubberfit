@@ -42,7 +42,11 @@ export function buildPlacementView(result: PackResult, request: PackRequest): Pl
       rotationRad: p.rotationRad,
       width: p.width,
       height: p.height,
-      polygon: p.polygon,
+      // PR 0a: Placement.polygon is PolygonWithHoles. PlacementViewItem.polygon
+      // is still single-contour Point2D[] — the view contract evolves in
+      // PR 0c alongside the LayoutModel renderer. Pass the outer ring at
+      // this boundary; any holes are dropped here today.
+      polygon: p.polygon.outer,
       shapeSpec: src?.shapeSpec ?? undefined,
       renderShape,
       difficulty: p.difficulty ?? undefined,

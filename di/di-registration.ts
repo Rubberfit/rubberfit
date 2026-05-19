@@ -23,6 +23,7 @@ import type { IReorderService } from "@/src/application/services/reorder.service
 import type { IReorderCalculationsService } from "@/src/application/services/reorder-calculations.service.interface"
 import type { IRollService } from "@/src/application/services/roll.service.interface"
 import type { ISupplierService } from "@/src/application/services/supplier.service.interface"
+import type { IStripeClientService } from "@/src/application/services/stripe-client.service.interface"
 import type { ITaxService } from "@/src/application/services/tax.service.interface"
 import type { ITaxApiService } from "@/src/application/services/tax-api.service.interface"
 import type { IVisionExtractionService } from "@/src/application/services/vision-extraction.service.interface"
@@ -32,6 +33,10 @@ import type { IHealthCheckService } from "@/src/application/services/health-chec
 import type { IAlertManagementService } from "@/src/application/services/alert-management.service.interface"
 import type { ICutFavoritesService } from "@/src/application/services/cut-favorites.service.interface"
 import type { IRollInventoryService } from "@/src/application/services/roll-inventory.service.interface"
+import type { IOrganizationService } from "@/src/application/services/organization.service.interface"
+import type { IOrganizationPreferencesService } from "@/src/application/services/organization-preferences.service.interface"
+import type { IUserPreferencesService } from "@/src/application/services/user-preferences.service.interface"
+import type { IStripeWebhookService } from "@/src/application/services/stripe-webhook.service.interface"
 
 // Infrastructure service singletons
 import { authService } from "@/src/infrastructure/services/authService"
@@ -74,6 +79,7 @@ import type { IRollsRepository } from "@/src/application/repositories/rolls.repo
 import { SupplierService } from "@/src/infrastructure/services/supplierService"
 import { suppliersRepository } from "@/src/infrastructure/repositories/suppliers.repository"
 import type { ISuppliersRepository } from "@/src/application/repositories/suppliers.repository.interface"
+import { stripeClientService } from "@/src/infrastructure/services/stripeClientService"
 import { taxService } from "@/src/infrastructure/services/taxService"
 import { taxApiService } from "@/src/infrastructure/services/taxApiService"
 import { visionExtractionService } from "@/src/infrastructure/services/visionExtractionService"
@@ -83,6 +89,10 @@ import { healthCheckService } from "@/src/infrastructure/services/healthCheckSer
 import { alertManagementService } from "@/src/infrastructure/services/alertManagementService"
 import { cutFavoritesService } from "@/src/infrastructure/services/cutFavoritesService"
 import { rollInventoryService } from "@/src/infrastructure/services/rollInventoryService"
+import { organizationService } from "@/src/infrastructure/services/organizationService"
+import { organizationPreferencesService } from "@/src/infrastructure/services/organizationPreferencesService"
+import { userPreferencesService } from "@/src/infrastructure/services/userPreferencesService"
+import { stripeWebhookService } from "@/src/infrastructure/services/stripeWebhookService"
 
 // Use case implementations
 import { CreatePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/create-purchase-order.use-case"
@@ -101,10 +111,17 @@ import { GetCutByIdUseCase } from "@/src/application/use-cases/cut-history/get-c
 import { DeleteCutUseCase } from "@/src/application/use-cases/cut-history/delete-cut.use-case"
 import { GetCutAnalyticsUseCase } from "@/src/application/use-cases/cut-history/get-cut-analytics.use-case"
 import { UpdateMaterialPricingUseCase } from "@/src/application/use-cases/pricing/update-material-pricing.use-case"
+// Invitations: DDD's invitations/* slice wins over dev's team/* duplicates.
 import { CreateInvitationUseCase } from "@/src/application/use-cases/invitations/create-invitation.use-case"
 import { ResendInvitationUseCase } from "@/src/application/use-cases/invitations/resend-invitation.use-case"
 import { RevokeInvitationUseCase } from "@/src/application/use-cases/invitations/revoke-invitation.use-case"
 import { AcceptInvitationUseCase } from "@/src/application/use-cases/invitations/accept-invitation.use-case"
+// Billing + seat management from dev (no DDD equivalent).
+import { CreateOrganizationFromOnboardingUseCase } from "@/src/application/use-cases/billing/create-organization-from-onboarding.use-case"
+import { CreateCheckoutSessionUseCase } from "@/src/application/use-cases/billing/create-checkout-session.use-case"
+import { CreateBillingPortalSessionUseCase } from "@/src/application/use-cases/billing/create-billing-portal-session.use-case"
+import { UpdateSubscriptionSeatCountUseCase } from "@/src/application/use-cases/billing/update-subscription-seat-count.use-case"
+import { DeactivateMemberUseCase } from "@/src/application/use-cases/team/deactivate-member.use-case"
 
 // Register all service singletons with the container.
 // Using registerInstance so the same singleton used by app/ consumers is also
@@ -229,6 +246,7 @@ container.registerInstance<IRollsRepository>(TOKENS.IRollsRepository, rollsRepos
 container.registerSingleton<IRollService>(TOKENS.IRollService, RollService)
 container.registerInstance<ISuppliersRepository>(TOKENS.ISuppliersRepository, suppliersRepository)
 container.registerSingleton<ISupplierService>(TOKENS.ISupplierService, SupplierService)
+container.registerInstance<IStripeClientService>(TOKENS.IStripeClientService, stripeClientService)
 container.registerInstance<ITaxService>(TOKENS.ITaxService, taxService)
 container.registerInstance<ITaxApiService>(TOKENS.ITaxApiService, taxApiService)
 container.registerInstance<IVisionExtractionService>(
@@ -249,6 +267,19 @@ container.registerInstance<ICutFavoritesService>(TOKENS.ICutFavoritesService, cu
 container.registerInstance<IRollInventoryService>(
   TOKENS.IRollInventoryService,
   rollInventoryService
+)
+container.registerInstance<IOrganizationService>(TOKENS.IOrganizationService, organizationService)
+container.registerInstance<IOrganizationPreferencesService>(
+  TOKENS.IOrganizationPreferencesService,
+  organizationPreferencesService
+)
+container.registerInstance<IUserPreferencesService>(
+  TOKENS.IUserPreferencesService,
+  userPreferencesService
+)
+container.registerInstance<IStripeWebhookService>(
+  TOKENS.IStripeWebhookService,
+  stripeWebhookService
 )
 
 // Use cases — registered as class-based singletons so the container lazily
@@ -282,9 +313,27 @@ container.registerSingleton(TOKENS.IGetCutByIdUseCase, GetCutByIdUseCase)
 container.registerSingleton(TOKENS.IDeleteCutUseCase, DeleteCutUseCase)
 container.registerSingleton(TOKENS.IGetCutAnalyticsUseCase, GetCutAnalyticsUseCase)
 container.registerSingleton(TOKENS.IUpdateMaterialPricingUseCase, UpdateMaterialPricingUseCase)
+
+// Invitations (DDD 8-phase slice)
 container.registerSingleton(TOKENS.ICreateInvitationUseCase, CreateInvitationUseCase)
 container.registerSingleton(TOKENS.IResendInvitationUseCase, ResendInvitationUseCase)
 container.registerSingleton(TOKENS.IRevokeInvitationUseCase, RevokeInvitationUseCase)
 container.registerSingleton(TOKENS.IAcceptInvitationUseCase, AcceptInvitationUseCase)
+
+// Stripe / billing / onboarding (from dev)
+container.registerSingleton(
+  TOKENS.ICreateOrganizationFromOnboardingUseCase,
+  CreateOrganizationFromOnboardingUseCase
+)
+container.registerSingleton(TOKENS.ICreateCheckoutSessionUseCase, CreateCheckoutSessionUseCase)
+container.registerSingleton(
+  TOKENS.ICreateBillingPortalSessionUseCase,
+  CreateBillingPortalSessionUseCase
+)
+container.registerSingleton(TOKENS.IDeactivateMemberUseCase, DeactivateMemberUseCase)
+container.registerSingleton(
+  TOKENS.IUpdateSubscriptionSeatCountUseCase,
+  UpdateSubscriptionSeatCountUseCase
+)
 
 export { container }

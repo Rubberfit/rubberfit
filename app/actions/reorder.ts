@@ -23,13 +23,24 @@ import type { Supplier as LegacySupplier } from "@/src/infrastructure/models/sup
 import type { ReorderRule } from "@/src/entities/reorder-rule"
 import type { IReorderService } from "@/src/application/services/reorder.service.interface"
 import type { IReorderCalculationsService } from "@/src/application/services/reorder-calculations.service.interface"
+import type { IOrganizationPreferencesService } from "@/src/application/services/organization-preferences.service.interface"
+import { DEFAULT_ORGANIZATION_PREFERENCES } from "@/src/infrastructure/models/organization-preferences"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
+import {
+  MaterialTypeId,
+  ProfileId,
+  ReorderRuleId,
+  SupplierId,
+  TenantId,
+} from "@/src/entities/value-objects/id"
 
 import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
 import type { PurchaseOrder as PurchaseOrderEntity } from "@/src/entities/purchase-order"
 import { SQFT_PER_SQM } from "@/src/application/use-cases/purchase-orders/po-input-conversion"
 
+import { requireActiveSubscription } from "@/app/server/auth/require-active-subscription"
+import { requireActiveTenant } from "@/app/server/auth/require-active-tenant"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requirePermission } from "@/app/server/auth/require-permission"
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
@@ -74,12 +85,45 @@ const createBulkReorderPurchaseOrderInputSchema = z.object({
   materialTypeIds: z.array(uuid).min(1, "Select at least one material to reorder"),
 })
 
+const nonNegativeNumber = z.number().min(0, "Must be 0 or greater")
+const positiveNumber = z.number().gt(0, "Must be greater than 0")
+
+const createReorderRuleInputSchema = z
+  .object({
+    material_type_id: uuid,
+    supplier_id: uuid.optional(),
+    /**
+     * Optional at the action boundary: when omitted the action seeds
+     * from `organization_preferences.lowStockThresholdSqft`. Explicit
+     * `0` is preserved (operator "no alert" override) via `??`.
+     */
+    reorder_point: nonNegativeNumber.optional(),
+    reorder_quantity: positiveNumber,
+    max_stock_level: nonNegativeNumber.optional(),
+    lead_time_days: z.number().int().min(0, "Lead time must be 0 or greater"),
+    safety_stock_days: z.number().int().min(0, "Safety stock must be 0 or greater").optional(),
+    auto_reorder: z.boolean().optional(),
+    active: z.boolean().optional(),
+    notes: z.string().trim().max(1000).optional(),
+  })
+  .refine(
+    (data) =>
+      data.max_stock_level === undefined ||
+      data.reorder_point === undefined ||
+      data.max_stock_level >= data.reorder_point,
+    {
+      path: ["max_stock_level"],
+      message: "Max stock level must be greater than or equal to the reorder point",
+    }
+  )
+
 export type CreateReorderPurchaseOrderActionInput = z.input<
   typeof createReorderPurchaseOrderInputSchema
 >
 export type CreateBulkReorderPurchaseOrderActionInput = z.input<
   typeof createBulkReorderPurchaseOrderInputSchema
 >
+export type CreateReorderRuleActionInput = z.input<typeof createReorderRuleInputSchema>
 
 // ── Server-side data sourcing ──────────────────────────────────────────
 //
@@ -243,6 +287,7 @@ export async function createReorderPurchaseOrder(
 ): Promise<CreateReorderPurchaseOrderResult> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageRolls")
   const parsed = createReorderPurchaseOrderInputSchema.parse(input)
 
@@ -282,6 +327,7 @@ export async function createBulkReorderPurchaseOrder(
 ): Promise<CreateBulkReorderPurchaseOrderResult> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageRolls")
   const parsed = createBulkReorderPurchaseOrderInputSchema.parse(input)
 
@@ -304,6 +350,93 @@ export async function createBulkReorderPurchaseOrder(
 }
 
 /**
+ * Create a reorder rule. `reorder_point` is optional on the action
+ * boundary — when the caller omits it, we seed from the org's
+ * `lowStockThresholdSqft`. Explicit values (including `0`) flow
+ * through unchanged via `??`. Auth + RBAC enforced server-side so
+ * the form can't bypass via the RPC hash.
+ */
+export async function createReorderRule(
+  input: CreateReorderRuleActionInput
+): Promise<ReorderRule> {
+  ensureDatabaseFactoryRegistered()
+  const actor = await requireAuthenticatedUser()
+  const subscription = await requireActiveSubscription(actor)
+  requirePermission(actor, "manageRolls")
+  requireActiveTenant(actor)
+  const parsed = createReorderRuleInputSchema.parse(input)
+
+  // Reorder point comes in sqft (caller-facing units); convert to sqm
+  // when handing off to the entity-typed service. Seeding from org
+  // prefs also reads in sqft so the post-seed invariant below stays
+  // unit-consistent with caller input.
+  const reorderPointSqft =
+    parsed.reorder_point ??
+    (await loadLowStockThresholdSqftSeed(subscription.organizationId, actor.id))
+
+  // The Zod `.refine()` runs against input only; once seeding fills
+  // in `reorder_point`, re-validate the invariant so a high org-level
+  // seed can't land alongside a low caller-supplied `max_stock_level`.
+  // Throw a `ZodError` on `max_stock_level` (matching the input-time
+  // refine's shape) so client forms can map both rejection paths to
+  // the same field-level error display. Sigilix PR #269 catch.
+  if (parsed.max_stock_level !== undefined && parsed.max_stock_level < reorderPointSqft) {
+    throw new z.ZodError([
+      {
+        code: z.ZodIssueCode.custom,
+        path: ["max_stock_level"],
+        message: "Max stock level must be greater than or equal to the reorder point",
+      },
+    ])
+  }
+
+  const reorderService = resolveService<IReorderService>(TOKENS.IReorderService)
+  const rule = await reorderService.createRule({
+    id: ReorderRuleId.fromPersistence(crypto.randomUUID()),
+    tenantId: TenantId.fromPersistence(actor.activeTenantId),
+    materialTypeId: MaterialTypeId.fromPersistence(parsed.material_type_id),
+    supplierId: parsed.supplier_id ? SupplierId.fromPersistence(parsed.supplier_id) : null,
+    reorderPointSqm: reorderPointSqft / SQFT_PER_SQM,
+    reorderQuantitySqm: parsed.reorder_quantity / SQFT_PER_SQM,
+    maxStockLevelSqm:
+      parsed.max_stock_level !== undefined ? parsed.max_stock_level / SQFT_PER_SQM : null,
+    leadTimeDays: parsed.lead_time_days,
+    safetyStockDays: parsed.safety_stock_days ?? 3,
+    autoReorder: parsed.auto_reorder ?? false,
+    notes: parsed.notes ?? null,
+    actor: ProfileId.fromPersistence(actor.id),
+  })
+
+  revalidatePath(REORDER_PATH)
+  return rule
+}
+
+/**
+ * Reads the workspace default low-stock threshold (sqft) from
+ * `tenant_settings`. Caller converts sqft → sqm at the entity-typed
+ * service boundary. Best-effort: a failed lookup falls back to the
+ * model default so create still succeeds.
+ */
+async function loadLowStockThresholdSqftSeed(
+  organizationId: string,
+  actorId: string
+): Promise<number> {
+  try {
+    const prefsService = resolveService<IOrganizationPreferencesService>(
+      TOKENS.IOrganizationPreferencesService
+    )
+    const prefs = await prefsService.getForOrganization(organizationId)
+    return prefs.lowStockThresholdSqft
+  } catch (error) {
+    console.error(
+      `[reorder] org-prefs threshold seed lookup failed (organizationId=${organizationId} actorId=${actorId}):`,
+      error
+    )
+    return DEFAULT_ORGANIZATION_PREFERENCES.lowStockThresholdSqft
+  }
+}
+
+/**
  * Read-only — server fetches rules + pending POs and runs the
  * generate-suggestions use-case. No client input. Still requires
  * authentication + permission so unauthorized callers can't enumerate
@@ -312,6 +445,7 @@ export async function createBulkReorderPurchaseOrder(
 export async function generateReorderSuggestions(): Promise<ReorderSuggestionOutput[]> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageRolls")
 
   const reorderService = resolveService<IReorderService>(TOKENS.IReorderService)

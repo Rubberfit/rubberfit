@@ -1,5 +1,6 @@
 import { SimpleCutDirection, SimplePartType } from "./nesting-visualizer-types"
 import { PartTemplate } from "./preset-template-data"
+import { polygonNetArea } from "./polygon-bounds"
 
 function getPartLabel(partType: PartTemplate["partType"]) {
   switch (partType) {
@@ -73,9 +74,9 @@ function getCutModeDescription(partType: PartTemplate["partType"]) {
  * every supported shape kind. Returned in sq in (not sq ft) because
  * the auto-fill bin allocator divides by sheet area in sq in.
  *
- * Note: `getRequestedSqFt` historically forces qty=1 for non-rectangle
- * shapes, which is a pre-existing under-count bug we preserve in that
- * function to avoid changing observed UI totals. This helper does NOT
+ * Note: `getRequestedSqFt` historically forces qty=1 for shapes other
+ * than rectangle + polygon (a pre-existing under-count bug preserved
+ * there to avoid changing observed UI totals). This helper does NOT
  * carry that quirk — it qty-multiplies every shape so the bin
  * allocator estimates capacity correctly when an operator orders, e.g.,
  * 10 cones.
@@ -104,6 +105,13 @@ function partTemplateAreaSqIn(template: PartTemplate): number {
       const height = template.height ?? 0
       return ((topWidth + bottomWidth) / 2) * height * qty
     }
+    case "polygon": {
+      // Polygon vertices are pre-converted to inches at confirm-time;
+      // the net (outer − holes) shoelace area is already in square inches.
+      const polygon = template.polygon
+      if (!polygon) return 0
+      return polygonNetArea(polygon) * qty
+    }
     case "rectangle":
     default:
       return (template.width ?? 0) * (template.length ?? 0) * qty
@@ -116,7 +124,10 @@ function getRequestedSqFt(templates: PartTemplate[]) {
   }
 
   return templates.reduce((total, template) => {
-    const qty = template.partType === "rectangle" ? Math.max(1, template.quantity) : 1
+    const qty =
+      template.partType === "rectangle" || template.partType === "polygon"
+        ? Math.max(1, template.quantity)
+        : 1
     switch (template.partType) {
       case "circle": {
         const radius = (template.diameter ?? 0) / 2
@@ -140,6 +151,12 @@ function getRequestedSqFt(templates: PartTemplate[]) {
         const bottomWidth = template.bottomWidth ?? 0
         const height = template.height ?? 0
         return total + (((topWidth + bottomWidth) / 2) * height * qty) / 144
+      }
+      case "polygon": {
+        const polygon = template.polygon
+        if (!polygon) return total
+        // Vertices are already in inches; convert net sq-in → sqft.
+        return total + (polygonNetArea(polygon) * qty) / 144
       }
       case "rectangle":
       default:

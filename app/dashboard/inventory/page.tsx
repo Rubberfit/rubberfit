@@ -27,11 +27,13 @@ import { InventoryStatsHero } from "./_components/inventory-stats-hero"
 import { InventoryTable } from "./_components/inventory-table"
 import { RollFormSheet } from "./_components/roll-form-sheet"
 import { downloadRollLabelPdf } from "./_components/roll-label-pdf"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
 
 function InventoryPageInner() {
   const { user } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const organizationPreferences = useOrganizationPreferences()
   const [refreshKey, setRefreshKey] = useState(0)
   const [searchQuery, setSearchQuery] = useState("")
   const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -80,7 +82,7 @@ function InventoryPageInner() {
         return
       }
       const { failedRollIds } = await ensureStoredRollBarcodes(list)
-      downloadRollLabelPdf(list)
+      downloadRollLabelPdf(list, { organizationPreferences })
       if (failedRollIds.length > 0) {
         toast.error("Labels generated, but some barcodes were not stored", {
           description: `${failedRollIds.length} roll${failedRollIds.length === 1 ? "" : "s"} failed barcode upload`,
@@ -112,7 +114,8 @@ function InventoryPageInner() {
       if (rolls && rolls.length > 0) {
         await exportPdfService.generateInventoryReport(
           rolls as unknown as Record<string, unknown>[],
-          summary as Record<string, unknown>
+          summary as Record<string, unknown>,
+          organizationPreferences
         )
       } else {
         toast.error("No data to export")

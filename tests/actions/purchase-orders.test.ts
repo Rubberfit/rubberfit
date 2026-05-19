@@ -20,6 +20,11 @@ vi.mock("@/app/server/auth/require-authenticated-user", () => ({
   requireAuthenticatedUser: requireAuthenticatedUserMock,
 }))
 
+const requireActiveSubscriptionMock = vi.hoisted(() => vi.fn())
+vi.mock("@/app/server/auth/require-active-subscription", () => ({
+  requireActiveSubscription: requireActiveSubscriptionMock,
+}))
+
 const requirePermissionMock = vi.hoisted(() => vi.fn())
 vi.mock("@/app/server/auth/require-permission", () => ({
   requirePermission: requirePermissionMock,
@@ -63,6 +68,7 @@ const VALID_ITEM = {
 describe("app/actions/purchase-orders", () => {
   beforeEach(() => {
     requireAuthenticatedUserMock.mockResolvedValue(ACTOR)
+    requireActiveSubscriptionMock.mockResolvedValue({ kind: "allowed" })
     requirePermissionMock.mockReturnValue(undefined)
   })
 

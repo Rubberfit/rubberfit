@@ -11,6 +11,8 @@ import {
   Cell,
 } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import { formatAreaSqft } from "@/src/application/preferences/user-unit-display"
 
 interface MaterialData {
   name: string
@@ -34,6 +36,7 @@ const COLORS = [
 ]
 
 export function MaterialSummaryChart({ data }: MaterialSummaryChartProps) {
+  const organizationPreferences = useOrganizationPreferences()
   return (
     <Card>
       <CardHeader>
@@ -48,7 +51,10 @@ export function MaterialSummaryChart({ data }: MaterialSummaryChartProps) {
             <Tooltip
               formatter={(value: number, name: string) => {
                 if (name === "Square Footage") {
-                  return [`${value.toFixed(1)} sqft`, "Square Footage"]
+                  return [
+                    formatAreaSqft(value, organizationPreferences, { precision: 1 }),
+                    "Square Footage",
+                  ]
                 }
                 return [value, name]
               }}

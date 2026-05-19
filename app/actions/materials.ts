@@ -4,16 +4,20 @@ import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
+import { requireActiveSubscription } from "@/app/server/auth/require-active-subscription"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requireActiveTenant } from "@/app/server/auth/require-active-tenant"
 import { requirePermission } from "@/app/server/auth/require-permission"
-import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
-import { rollService } from "@/src/infrastructure/services/rollService"
 import { resolveService } from "@/di/resolve"
 import { TOKENS } from "@/di/tokens"
 import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
+import type { IOrganizationPreferencesService } from "@/src/application/services/organization-preferences.service.interface"
+import { DEFAULT_ORGANIZATION_PREFERENCES } from "@/src/infrastructure/models/organization-preferences"
+import { SQFT_PER_SQM } from "@/src/application/use-cases/purchase-orders/po-input-conversion"
 import { type MaterialType, type MaterialTypeSnapshot } from "@/src/entities/material-type"
 import { MaterialTypeId, ProfileId, TenantId } from "@/src/entities/value-objects/id"
+import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { rollService } from "@/src/infrastructure/services/rollService"
 
 /**
  * Material-type management actions.
@@ -94,20 +98,52 @@ export async function createMaterialType(
 ): Promise<MaterialTypeSnapshot> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  const subscription = await requireActiveSubscription(actor)
   requirePermission(actor, "manageMaterialTypes")
   requireActiveTenant(actor)
   const parsed = createMaterialTypeSchema.parse(input)
+
+  const minStockSqm =
+    parsed.min_stock_sqm ??
+    (await loadLowStockThresholdSqmSeed(subscription.organizationId, actor.id))
 
   const result = await materialTypeService.createMaterialType({
     id: MaterialTypeId.fromPersistence(crypto.randomUUID()),
     tenantId: TenantId.fromPersistence(actor.activeTenantId),
     name: parsed.name,
     description: parsed.description ?? null,
-    minStockSqm: parsed.min_stock_sqm ?? null,
+    minStockSqm,
     createdBy: ProfileId.fromPersistence(actor.id),
   })
   revalidateAllMaterialPaths()
   return entityToSnapshot(result)
+}
+
+/**
+ * Reads the workspace default low-stock threshold from
+ * `tenant_settings.low_stock_threshold_sqft` and converts to sqm at the
+ * boundary (the entity stores sqm). Best-effort: a failed lookup seeds
+ * from `DEFAULT_ORGANIZATION_PREFERENCES` so create still succeeds.
+ * Falling back silently is the right behavior — a missed seed produces
+ * a material with the model default, not a 500.
+ */
+async function loadLowStockThresholdSqmSeed(
+  organizationId: string,
+  actorId: string
+): Promise<number> {
+  try {
+    const prefsService = resolveService<IOrganizationPreferencesService>(
+      TOKENS.IOrganizationPreferencesService
+    )
+    const prefs = await prefsService.getForOrganization(organizationId)
+    return prefs.lowStockThresholdSqft / SQFT_PER_SQM
+  } catch (error) {
+    console.error(
+      `[materials] org-prefs threshold seed lookup failed (organizationId=${organizationId} actorId=${actorId}):`,
+      error
+    )
+    return DEFAULT_ORGANIZATION_PREFERENCES.lowStockThresholdSqft / SQFT_PER_SQM
+  }
 }
 
 export async function updateMaterialType(
@@ -115,6 +151,7 @@ export async function updateMaterialType(
 ): Promise<MaterialTypeSnapshot> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageMaterialTypes")
   const parsed = updateMaterialTypeSchema.parse(input)
 
@@ -143,6 +180,7 @@ export async function deleteMaterialType(
 ): Promise<DeleteMaterialTypeResult> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageMaterialTypes")
   const parsed = deleteMaterialTypeSchema.parse(input)
 

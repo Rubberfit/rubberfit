@@ -57,8 +57,22 @@ export interface PlacedPart {
   outerRadius?: number
   arcDegrees?: number
 
-  /** Actual placed polygon vertices (inches, post-rotation). Present for non-rect shapes. */
+  /** Actual placed polygon outer ring (inches, post-rotation). Present for non-rect shapes. */
   polygon?: Array<{ x: number; y: number }>
+  /**
+   * Inner hole loops (inches, post-rotation), if any. Each entry is a
+   * single closed loop. Holes are voids — the operator does NOT cut
+   * the hole's interior. Carried alongside `polygon` so hole-blind
+   * consumers (thumbnails, area math, bbox math) stay correct without
+   * needing to know about holes. Hole-aware consumers (Konva renderer,
+   * PDF renderer, free-roam collision) read this field and paint /
+   * test the cutouts.
+   *
+   * Mirrors the holes part of `rf_geom::PolygonWithHoles` /
+   * `Placement.polygon.holes` from the Rust round-trip. Absent or
+   * empty array → no holes.
+   */
+  holes?: Array<Array<{ x: number; y: number }>>
   /**
    * Pack polygon — the surface jagua collided on, when it differs
    * from `polygon` (today: the cone convex-hull overlay in default
@@ -146,6 +160,10 @@ function isPointArray(value: unknown): value is Array<{ x: number; y: number }> 
   return Array.isArray(value) && value.every(isPoint)
 }
 
+function isHoleArray(value: unknown): value is Array<Array<{ x: number; y: number }>> {
+  return Array.isArray(value) && value.every(isPointArray)
+}
+
 function hasOptionalFiniteNumber(value: Record<string, unknown>, key: string): boolean {
   return value[key] === undefined || isFiniteNumber(value[key])
 }
@@ -184,6 +202,7 @@ function isPlacedPart(value: unknown): value is PlacedPart {
     hasOptionalFiniteNumber(value, "outerRadius") &&
     hasOptionalFiniteNumber(value, "arcDegrees") &&
     (value.polygon === undefined || isPointArray(value.polygon)) &&
+    (value.holes === undefined || isHoleArray(value.holes)) &&
     (value.packPolygon === undefined || isPointArray(value.packPolygon)) &&
     (value.flipped === undefined || typeof value.flipped === "boolean") &&
     (value.rotated90 === undefined || typeof value.rotated90 === "boolean")
@@ -254,6 +273,18 @@ function coercePointArray(value: unknown): Array<{ x: number; y: number }> | und
   return points.length > 0 ? points : undefined
 }
 
+function coerceHoleArray(value: unknown): Array<Array<{ x: number; y: number }>> | undefined {
+  if (!Array.isArray(value)) return undefined
+  const holes: Array<Array<{ x: number; y: number }>> = []
+  for (const entry of value) {
+    const ring = coercePointArray(entry)
+    // Drop degenerate rings (< 3 vertices after coercion); the renderer
+    // and PDF emitter both require `length >= 3` to draw a closed loop.
+    if (ring && ring.length >= 3) holes.push(ring)
+  }
+  return holes.length > 0 ? holes : undefined
+}
+
 function coerceLayoutRegion(value: unknown): LayoutRegion | null {
   if (!isRecord(value)) return null
   if (
@@ -310,6 +341,7 @@ function coercePlacedPart(value: unknown): PlacedPart | null {
   const rotationRad = isFiniteNumber(value.rotationRad) ? value.rotationRad : 0
 
   const polygon = coercePointArray(value.polygon)
+  const holes = coerceHoleArray(value.holes)
   const packPolygon = coercePointArray(value.packPolygon)
 
   return {
@@ -331,6 +363,7 @@ function coercePlacedPart(value: unknown): PlacedPart | null {
     outerRadius: coerceOptionalNumber(value.outerRadius),
     arcDegrees: coerceOptionalNumber(value.arcDegrees),
     polygon,
+    holes,
     packPolygon,
     cutDirection:
       value.cutDirection === "vertical_split" ||

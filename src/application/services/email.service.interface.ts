@@ -58,6 +58,12 @@ export interface IEmailService {
     to: string
     userName: string
   }): Promise<{ success: boolean; messageId?: string; error?: string }>
+  /**
+   * Send an invitation email. Matches the DDD invitation slice
+   * (CreateInvitationUseCase / ResendInvitationUseCase) which is the
+   * single canonical caller. Dev's `sendInvitationEmail` variant was
+   * superseded by this method when DDD's slice won the merge.
+   */
   sendInvitation(params: {
     to: string
     tenantName: string

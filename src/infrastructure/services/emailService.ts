@@ -20,6 +20,18 @@ const COMPANY_NAME = "Arc & Anchor"
 const FROM_EMAIL = process.env.SENDER_EMAIL ?? "notifications@arcandanchor.com"
 const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL ?? "support@arcandanchor.com"
 
+// Minimal HTML entity escape for inline strings rendered into transactional
+// emails. Replace with a full email-template renderer once the React Email
+// templates above are uncommented.
+function escapeHtml(input: string): string {
+  return input
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;")
+}
+
 interface EmailOptions {
   to: string | string[]
   subject: string

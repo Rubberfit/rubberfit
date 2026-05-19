@@ -14,9 +14,15 @@
 
 import { useState } from "react"
 import type { LayoutModel, PlacedPart } from "./layout-model"
-import { formatInches } from "./nesting-layout-utils"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import {
+  formatDimensionsInches,
+  formatLengthInches,
+  type UnitDisplayPreferencesInput,
+} from "@/src/application/preferences/user-unit-display"
 
 export function CutLegend({ layouts }: { layouts: LayoutModel[] }) {
+  const organizationPreferences = useOrganizationPreferences()
   // Distinct (tag, descriptor) pairs across all sheets. Tag is
   // `part.label`, which the Rust pipeline echoes from `Part.tag`.
   const seen = new Map<string, string>()
@@ -25,7 +31,7 @@ export function CutLegend({ layouts }: { layouts: LayoutModel[] }) {
       const key = part.label
       if (!key) continue
       if (!seen.has(key)) {
-        seen.set(key, partDimensionLabel(part))
+        seen.set(key, partDimensionLabel(part, organizationPreferences))
       }
     }
   }
@@ -94,26 +100,47 @@ function ChevronGlyph({ open }: { open: boolean }) {
  * use (width × length for rects, Ø for circles, top/bottom for
  * trapezoids, etc.). Falls back to the placement bbox when the
  * shape-specific fields aren't populated.
+ *
+ * Pure builder: takes optional `unitPreferences` and routes through
+ * the user-unit-display helpers so `Cut Legend` rows speak the
+ * operator's unit system. Arc degrees stay unit-agnostic.
  */
-export function partDimensionLabel(part: PlacedPart): string {
+export function partDimensionLabel(
+  part: PlacedPart,
+  unitPreferences?: UnitDisplayPreferencesInput
+): string {
   switch (part.renderShape) {
     case "circle":
       if (part.diameter != null && part.diameter > 0) {
-        return `Ø${formatInches(part.diameter)}"`
+        return `Ø${formatLengthInches(part.diameter, unitPreferences)}`
       }
       break
     case "trapezoid":
       if (part.topWidth != null && part.bottomWidth != null) {
-        return `${formatInches(part.topWidth)}/${formatInches(part.bottomWidth)}" × ${formatInches(part.height)}"`
+        // Trapezoid label preserves the slashed `top/bottom × height`
+        // shape rather than passing through the generic dimensions
+        // helper — the slash is intentional and means "two parallel
+        // edges", not a paired axis.
+        const top = formatLengthInches(part.topWidth, unitPreferences)
+        const bottom = formatLengthInches(part.bottomWidth, unitPreferences)
+        const h = formatLengthInches(part.height, unitPreferences)
+        return `${top}/${bottom} × ${h}`
       }
       break
     case "sector":
       if (part.innerRadius != null && part.outerRadius != null && part.arcDegrees != null) {
-        return `Cone R${formatInches(part.innerRadius)}-${formatInches(part.outerRadius)}" · ${formatInches(part.arcDegrees)}°`
+        const inner = formatLengthInches(part.innerRadius, unitPreferences)
+        const outer = formatLengthInches(part.outerRadius, unitPreferences)
+        // Arc degrees are unitless — render with at most 1 decimal,
+        // strip trailing zero. No unit conversion.
+        const arc = Number.isInteger(part.arcDegrees)
+          ? String(part.arcDegrees)
+          : part.arcDegrees.toFixed(1).replace(/\.0$/, "")
+        return `Cone R${inner}-R${outer} · ${arc}°`
       }
       break
   }
-  return `${formatInches(part.width)}" × ${formatInches(part.height)}"`
+  return formatDimensionsInches([part.width, part.height], unitPreferences)
 }
 
 const TAG_PILL_COLORS: Array<{ backgroundColor: string; borderColor: string; color: string }> = [

@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import Link from "next/link"
 import { FileText, Plus, DollarSign, Truck, Clock } from "lucide-react"
 import { toast } from "sonner"
@@ -15,6 +15,7 @@ import {
   StatCard,
   StatusBadge,
 } from "@/app/components/patterns"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
 import { purchaseOrders as purchaseOrdersSdk } from "@/src/infrastructure/api-client/rf/procurement"
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 
@@ -28,6 +29,11 @@ import { usePurchaseOrders } from "./_components/use-purchase-orders"
 
 export default function PurchaseOrdersPage() {
   const po = usePurchaseOrders()
+  // PR 2c (operator-seeds-prints): the PDF speaks in the workspace's
+  // voice, not the viewer's. Drawer/table on-screen still renders
+  // per-user date format via use-po-columns + po-view-sections; only
+  // the PDF download + export menu wires org prefs.
+  const organizationPreferences = useOrganizationPreferences()
   const [drawerMode, setDrawerMode] = useState<PoDrawerMode>("view")
   const [receivePO, setReceivePO] = useState<PurchaseOrderWithDetails | null>(null)
   const [receiveOpen, setReceiveOpen] = useState(false)
@@ -112,15 +118,24 @@ export default function PurchaseOrdersPage() {
   }
 
   const exportInput = useMemo(
-    () =>
-      toPurchaseOrdersExportInput({
+    () => ({
+      ...toPurchaseOrdersExportInput({
         filteredPOs: po.filteredPOs,
         statusFilter: po.statusFilter,
         supplierFilter: po.supplierFilter,
         searchQuery: po.searchQuery,
         stats: po.stats,
       }),
-    [po.filteredPOs, po.statusFilter, po.supplierFilter, po.searchQuery, po.stats]
+      organizationPreferences,
+    }),
+    [
+      po.filteredPOs,
+      po.statusFilter,
+      po.supplierFilter,
+      po.searchQuery,
+      po.stats,
+      organizationPreferences,
+    ]
   )
 
   return (
@@ -230,7 +245,7 @@ export default function PurchaseOrdersPage() {
         materialTypes={po.materialTypes}
         onSaved={handleSavedFromDrawer}
         onUpdateStatus={po.updatePOStatus}
-        onDownloadPDF={handleDownloadPDF}
+        onDownloadPDF={handleDownloadPDFWithPrefs}
       />
 
       <PoReceiveDialog

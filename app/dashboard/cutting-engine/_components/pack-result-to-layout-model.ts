@@ -169,7 +169,16 @@ function placementToPlacedPart(
     innerRadius: template?.innerRadius,
     outerRadius: template?.outerRadius,
     arcDegrees: template?.arcDegrees,
-    polygon: p.polygon,
+    // PR 0b layout-model compatibility layer: `Placement.polygon` is
+    // a `PolygonWithHoles` end-to-end on the wire (rf-layout result
+    // DTO), but `LayoutModel.PlacedPart` keeps `polygon` as the outer
+    // ring `Point2D[]` and carries inner loops on a sibling `holes`
+    // field. This intentional drift lets hole-blind consumers
+    // (thumbnails, area math, bbox math, free-region paint) stay
+    // correct without learning the new shape — only the renderer +
+    // PDF + collision paths read `holes`.
+    polygon: p.polygon.outer,
+    holes: p.polygon.holes.length > 0 ? p.polygon.holes : undefined,
     packPolygon: p.packPolygon,
   }
 }

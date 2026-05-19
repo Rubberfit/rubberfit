@@ -3,6 +3,8 @@
 import { Activity, Calendar, Scissors, TrendingDown } from "lucide-react"
 
 import { StatCard, type StatCardProps } from "@/app/components/patterns"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import { formatAreaSqft } from "@/src/application/preferences/user-unit-display"
 
 interface ComparisonData {
   current: { avgWaste: number; totalCuts: number }
@@ -17,6 +19,7 @@ interface ComparisonSummaryCardsProps {
 }
 
 export function ComparisonSummaryCards({ comparison }: ComparisonSummaryCardsProps) {
+  const organizationPreferences = useOrganizationPreferences()
   // `improvement` is positive when current waste < previous waste,
   // i.e. less waste = better. Pass through StatCard's "positive-up"
   // intent so the chip turns green on positive improvement values.
@@ -64,7 +67,9 @@ export function ComparisonSummaryCards({ comparison }: ComparisonSummaryCardsPro
         label="Material saved"
         icon={<Scissors />}
         value={`$${comparison.savingsDollars.toFixed(0)}`}
-        footnote={`${comparison.savingsSqft.toFixed(1)} sqft`}
+        footnote={formatAreaSqft(comparison.savingsSqft, organizationPreferences, {
+          precision: 1,
+        })}
         sparkIntent="success"
       />
     </div>

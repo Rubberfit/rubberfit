@@ -1,6 +1,6 @@
 {
   "name": "rema-portal",
-  "version": "1.1.0",
+  "version": "2.0.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -37,7 +37,9 @@
     "clippy:rust": "cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings",
     "openapi:dump": "cargo run --quiet --manifest-path engine/Cargo.toml -p rf-api --bin dump-openapi > engine/crates/rf-api/openapi.json",
     "openapi:types": "openapi-typescript engine/crates/rf-api/openapi.json --output src/infrastructure/api-client/types.ts",
-    "openapi:check": "bash -c 'tmp=$(mktemp) && cargo run --quiet --manifest-path engine/Cargo.toml -p rf-api --bin dump-openapi > \"$tmp\" && diff -u engine/crates/rf-api/openapi.json \"$tmp\" && rm \"$tmp\"'"
+    "openapi:check": "bash -c 'tmp=$(mktemp) && cargo run --quiet --manifest-path engine/Cargo.toml -p rf-api --bin dump-openapi > \"$tmp\" && diff -u engine/crates/rf-api/openapi.json \"$tmp\" && rm \"$tmp\"'",
+    "stripe:setup": "node scripts/stripe-setup.mjs",
+    "stripe:webhook-register": "node scripts/stripe-webhook-register.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -53,11 +55,13 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
+    "dxf-parser": "^1.1.2",
     "framer-motion": "^12.38.0",
     "jspdf": "^4.2.1",
     "konva": "^10.2.5",
     "lucide-react": "^1.7.0",
-    "next": "^16.2.3",
+    "next": "^16.2.6",
+    "next-intl": "^4.12.0",
     "next-themes": "^0.4.6",
     "openapi-fetch": "^0.14.1",
     "radix-ui": "^1.4.3",
@@ -73,6 +77,7 @@
     "sat": "^0.9.0",
     "simple-icons": "^16.15.0",
     "sonner": "^2.0.7",
+    "stripe": "^22.1.1",
     "tailwind-merge": "^3.5.0",
     "tsyringe": "^4.10.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
@@ -98,7 +103,7 @@
     "globals": "^17.4.0",
     "happy-dom": "^20.9.0",
     "openapi-typescript": "^7.4.4",
-    "postcss": "^8.5.10",
+    "postcss": "^8.5.11",
     "prettier": "^3.8.1",
     "tailwindcss": "^4.2.2",
     "ts-morph": "^28.0.0",
@@ -113,6 +118,7 @@
   "overrides": {
     "openapi-typescript": {
       "typescript": "$typescript"
-    }
+    },
+    "@swc/helpers": "0.5.15"
   }
 }

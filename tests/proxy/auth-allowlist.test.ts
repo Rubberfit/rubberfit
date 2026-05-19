@@ -18,8 +18,24 @@ describe("auth-allowlist: isPublicPath", () => {
     expect(isPublicPath("/registerme")).toBe(false)
   })
 
+  it("treats only the exact root product hub as public", () => {
+    expect(isPublicPath("/")).toBe(true)
+    expect(isPublicPath("//dashboard")).toBe(false)
+  })
+
+  it("treats crawler metadata routes as public", () => {
+    expect(isPublicPath("/robots.txt")).toBe(true)
+    expect(isPublicPath("/sitemap.xml")).toBe(true)
+  })
+
+  it("keeps file and webhook public entries exact-only", () => {
+    expect(isPublicPath("/robots.txt/anything")).toBe(false)
+    expect(isPublicPath("/sitemap.xml/anything")).toBe(false)
+    expect(isPublicPath("/auth-email-logo/anything")).toBe(false)
+    expect(isPublicPath("/api/stripe/webhook/anything")).toBe(false)
+  })
+
   it("treats unrelated paths as non-public", () => {
-    expect(isPublicPath("/")).toBe(false)
     expect(isPublicPath("/dashboard")).toBe(false)
     expect(isPublicPath("/dashboard/inventory")).toBe(false)
     expect(isPublicPath("/api/cuts/history")).toBe(false)
@@ -33,6 +49,16 @@ describe("auth-allowlist: isPublicPath", () => {
     // anonymous-access vector.
     expect(PUBLIC_PATHS).not.toContain("/api/tax-rates")
     expect(isPublicPath("/api/tax-rates")).toBe(false)
+  })
+
+  it("allowlists /invite/[token] (PR 6 invitation landing)", () => {
+    // The /invite/[token] landing must render for un-authenticated invitees;
+    // the route fetches a public preview via a SECURITY DEFINER RPC and the
+    // accept action remains gated. Path-prefix-overlap still must not match.
+    expect(PUBLIC_PATHS).toContain("/invite")
+    expect(isPublicPath("/invite")).toBe(true)
+    expect(isPublicPath("/invite/abc123")).toBe(true)
+    expect(isPublicPath("/inviteabc")).toBe(false)
   })
 })
 

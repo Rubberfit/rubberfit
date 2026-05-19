@@ -90,11 +90,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const layouts = extractAutoLayouts(cutRow.layout_json)
   if (!layouts) {
+    // `extractAutoLayouts` returns null in three cases: (a) the snapshot
+    // was never stored (legacy pre-`layout_json` rows), (b) the snapshot
+    // shape is unreadable to the strict `isLayoutModelArray` guard, or
+    // (c) the envelope `version` is outside the supported set. The
+    // operator-facing copy stays generic — they can't action the
+    // distinction, and "regen unavailable" is the same outcome.
     return NextResponse.json(
-      {
-        error:
-          "PDF cannot be regenerated for this cut. The layout snapshot was not stored at save time.",
-      },
+      { error: "PDF cannot be regenerated for this cut by this build." },
       { status: 422 }
     )
   }

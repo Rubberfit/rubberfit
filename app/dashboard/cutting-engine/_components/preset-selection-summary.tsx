@@ -7,6 +7,12 @@ import { Scissors } from "lucide-react"
 import type { PartTemplate } from "./preset-template-data"
 import { CAT_CARD, CAT_BADGE } from "./preset-template-data"
 import { getTemplateAreaSqFt } from "./preset-utils"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import {
+  formatAreaSqft,
+  getAreaUnitLabel,
+  getDisplayAreaValue,
+} from "@/src/application/preferences/user-unit-display"
 
 interface PresetSelectionSummaryProps {
   selectedTemplates: PartTemplate[]
@@ -21,9 +27,11 @@ export default function PresetSelectionSummary({
   onToggle,
   onRemoveCustom,
 }: PresetSelectionSummaryProps) {
+  const organizationPreferences = useOrganizationPreferences()
   if (selectedTemplates.length === 0) {
     return null
   }
+  const areaUnit = getAreaUnitLabel(organizationPreferences)
 
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-3 dark:bg-card">
@@ -33,8 +41,8 @@ export default function PresetSelectionSummary({
           <span className="text-sm font-medium text-slate-700 dark:text-slate-100">
             {selectedTemplates.length} size{selectedTemplates.length > 1 ? "s" : ""} selected
           </span>
-          <Badge variant="outline" className="text-xs">
-            {totalArea.toFixed(2)} sq ft total
+          <Badge variant="outline" className="text-xs tabular-nums">
+            {formatAreaSqft(totalArea, organizationPreferences, { precision: 2 })} total
           </Badge>
         </div>
         <div className="text-xs text-slate-500 dark:text-slate-100">
@@ -71,7 +79,7 @@ export default function PresetSelectionSummary({
                 Dimensions
               </th>
               <th className="text-right py-1 font-semibold text-slate-600 dark:text-slate-100">
-                Sq ft each
+                {areaUnit} each
               </th>
             </tr>
           </thead>
@@ -90,15 +98,18 @@ export default function PresetSelectionSummary({
                     )}
                   </span>
                 </td>
-                <td className="py-1 text-right text-slate-600 dark:text-slate-100">
-                  {getTemplateAreaSqFt(template).toFixed(2)}
+                <td className="py-1 text-right text-slate-600 tabular-nums dark:text-slate-100">
+                  {getDisplayAreaValue(
+                    getTemplateAreaSqFt(template),
+                    organizationPreferences
+                  ).toFixed(2)}
                 </td>
               </tr>
             ))}
             <tr className="bg-slate-100 dark:bg-slate-950">
               <td className="py-1 pr-3 font-semibold text-slate-700 dark:text-slate-100">Total</td>
-              <td className="py-1 text-right font-semibold text-slate-700 dark:text-slate-100">
-                {totalArea.toFixed(2)} sq ft
+              <td className="py-1 text-right font-semibold text-slate-700 tabular-nums dark:text-slate-100">
+                {formatAreaSqft(totalArea, organizationPreferences, { precision: 2 })}
               </td>
             </tr>
           </tbody>

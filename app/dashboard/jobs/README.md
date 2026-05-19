@@ -66,10 +66,16 @@ delete / parts / assignees / PDF export all happen inline.
   tooltip on legacy rows that have neither. No layout thumbnails
   (per the customer-facing rule — layouts stay in the internal
   cut history view).
-- **job-pdf.ts** -- jsPDF builder. Receipt-style: customer +
-  company header, roster, parts, allocated rolls, totals.
-  **No cut layouts.** Exports `buildJobPdfBlob` for
-  share-link uploads and `jobPdfFileName` for consistent naming.
+- **job-pdf.ts** -- jsPDF builder. Customer canvas (Letter
+  612×792pt @ 48pt margin). **Phase 7 PR 2:** rebuilt on the
+  shared `app/lib/pdf` design system — composes
+  `drawCustomerChrome`, `drawStatusChip` (JobStatus → ChipIntent),
+  `drawKpiCard` (Pieces / Total area / Total value), `drawRuledTable`
+  (parts + allocated rolls), `drawSectionDivider`,
+  `stampFooterOnEveryPage`. Two-column Bill To / Project Details
+  block at the top. **No cut layouts** (customer-facing rule).
+  Exports `buildJobPdf` (jsPDF), `buildJobPdfBlob` (share-link
+  uploads), `downloadJobPdf` (browser save), `jobPdfFileName`.
 - **job-share-link-dialog.tsx** -- "Share link" action on the
   drawer. Builds the PDF client-side, uploads to the private
   `job-pdfs` bucket via `uploadJobPdf`, and displays a copyable

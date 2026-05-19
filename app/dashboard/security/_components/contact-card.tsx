@@ -23,7 +23,7 @@ const ARTIFACTS = [
   {
     icon: Mail,
     title: "Vulnerability disclosure",
-    body: "Report findings to security@arcandanchor.com — 48-hour response target with coordinated disclosure.",
+    body: "Report findings to support@rubberfit.app — 48-hour response target with coordinated disclosure.",
   },
 ] as const
 
@@ -53,14 +53,14 @@ export function ContactCard() {
       <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-0.5">
           <p className="font-medium text-foreground text-sm">
-            security@arcandanchor.com
+            support@rubberfit.app
           </p>
           <p className="text-muted-foreground text-xs">
             DPA, questionnaires, audit reports, and vulnerability disclosures.
           </p>
         </div>
         <a
-          href="mailto:security@arcandanchor.com?subject=Trust%20%26%20Security%20inquiry"
+          href="mailto:support@rubberfit.app?subject=Trust%20%26%20Security%20inquiry"
           className="inline-flex h-8 shrink-0 items-center justify-center rounded-md bg-primary px-4 font-medium text-primary-foreground text-xs transition-colors hover:bg-primary/90"
         >
           Get in touch

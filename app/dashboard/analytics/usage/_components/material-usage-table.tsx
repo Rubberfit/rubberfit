@@ -11,6 +11,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/app/components/ui/table"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import {
+  getAreaUnitLabel,
+  getDisplayAreaValue,
+} from "@/src/application/preferences/user-unit-display"
 
 interface MaterialUsage {
   materialType: string
@@ -26,6 +31,8 @@ interface MaterialUsageTableProps {
 }
 
 export function MaterialUsageTable({ data }: MaterialUsageTableProps) {
+  const organizationPreferences = useOrganizationPreferences()
+  const areaUnit = getAreaUnitLabel(organizationPreferences)
   return (
     <Card>
       <CardHeader>
@@ -40,7 +47,7 @@ export function MaterialUsageTable({ data }: MaterialUsageTableProps) {
             <TableHeader>
               <TableRow>
                 <TableHead>Material Type</TableHead>
-                <TableHead>Total Used (sq ft)</TableHead>
+                <TableHead>Total Used ({areaUnit})</TableHead>
                 <TableHead>Value</TableHead>
                 <TableHead>Cuts</TableHead>
                 <TableHead>Rolls Used</TableHead>
@@ -51,7 +58,11 @@ export function MaterialUsageTable({ data }: MaterialUsageTableProps) {
               {data.map((material) => (
                 <TableRow key={material.materialType}>
                   <TableCell className="font-medium">{material.materialType}</TableCell>
-                  <TableCell className="font-mono">{material.totalSqftUsed.toFixed(1)}</TableCell>
+                  <TableCell className="font-mono tabular-nums">
+                    {getDisplayAreaValue(material.totalSqftUsed, organizationPreferences).toFixed(
+                      1
+                    )}
+                  </TableCell>
                   <TableCell className="font-mono">${material.totalValue.toFixed(0)}</TableCell>
                   <TableCell className="text-center">{material.totalCuts}</TableCell>
                   <TableCell className="text-center">{material.rollsUsed}</TableCell>

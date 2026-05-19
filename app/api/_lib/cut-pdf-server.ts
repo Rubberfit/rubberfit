@@ -8,8 +8,15 @@ import {
 } from "@/app/dashboard/cutting-engine/_components/layout-model"
 import { PART_OPTIONS } from "@/app/dashboard/cutting-engine/_components/preset-template-data"
 import type { CutHistory } from "@/src/infrastructure/models/supabase"
-import type { CutHistoryLayoutJson } from "@/src/infrastructure/models/cut-history-layout"
+import {
+  type CutHistoryLayoutJson,
+  isSupportedLayoutJsonVersion,
+} from "@/src/infrastructure/models/cut-history-layout"
 import { uploadCutPdfBlob } from "@/src/infrastructure/services/cutPdfStorageService"
+import {
+  getOrgPreferencesForOwner,
+  type OrgPrintPreferencesInput,
+} from "@/src/infrastructure/services/cut-pdf-prefs-lookup"
 
 const PART_TYPE_BY_PART_ID: Record<number, string> = {
   1: "rectangle",
@@ -22,9 +29,17 @@ const PART_TYPE_BY_PART_ID: Record<number, string> = {
  * Recover the LayoutModel[] saved alongside an auto-nest cut. The Rust v2 DTO
  * doesn't carry layout_json yet, so callers must read it through the
  * service-role client (this helper only validates shape).
+ *
+ * Accepts any envelope `version` in the supported set (currently `{1, 2}`).
+ * v1 rows lack the polygon-with-holes sibling field on parts; v2 rows MAY
+ * carry it. The downstream `isLayoutModel` guard already treats `holes` as
+ * optional, so both versions deserialize through the same path — the
+ * version check here is the explicit fence against unknown future
+ * schemas getting interpreted with current renderers.
  */
 export function extractAutoLayouts(layoutJson: CutHistoryLayoutJson | null): LayoutModel[] | null {
   if (!layoutJson || layoutJson.kind !== "auto") return null
+  if (!isSupportedLayoutJsonVersion(layoutJson.version)) return null
   return isLayoutModelArray(layoutJson.layouts) ? layoutJson.layouts : null
 }
 
@@ -33,7 +48,11 @@ export function extractAutoLayouts(layoutJson: CutHistoryLayoutJson | null): Lay
  * The save-time path (page.tsx) builds this from live engine state; this is
  * the recovery path that has only the row + layout snapshot to work with.
  */
-export function buildCutPdfDataFromRow(cut: CutHistory, layouts: LayoutModel[]): CutPdfData {
+export function buildCutPdfDataFromRow(
+  cut: CutHistory,
+  layouts: LayoutModel[],
+  organizationPreferences?: OrgPrintPreferencesInput
+): CutPdfData {
   const partType = PART_TYPE_BY_PART_ID[cut.part_id]
   const partOption = partType ? PART_OPTIONS.find((p) => p.partType === partType) : null
   const partLabel = partOption?.label ?? "Custom"
@@ -81,6 +100,7 @@ export function buildCutPdfDataFromRow(cut: CutHistory, layouts: LayoutModel[]):
     scrapPct,
     fabScore: cut.fab_score,
     cutDate: cut.cut_date,
+    organizationPreferences,
   }
 }
 
@@ -95,7 +115,8 @@ export async function generateAndStoreCutPdf(
   userId: string,
   layouts: LayoutModel[]
 ): Promise<string | null> {
-  const data = buildCutPdfDataFromRow(cut, layouts)
+  const organizationPreferences = await getOrgPreferencesForOwner(admin, userId)
+  const data = buildCutPdfDataFromRow(cut, layouts, organizationPreferences)
   const blob = await generateCutPdf({ svgElements: [], layouts, data })
   return uploadCutPdfBlob(admin, cut.id, userId, blob)
 }

@@ -60,7 +60,12 @@ function ringTemplate(id: string, outerD: number, innerD: number): PartTemplate 
     innerRadius: innerD / 2,
     outerRadius: outerD / 2,
     renderShape: "ring",
-    polygon: circleToPolygon(outerD, 48),
+    // ringTemplate must actually have an inner hole — the previous
+    // fixture used an empty holes array so "ring crescent + inner-hole
+    // geometry" tests were really exercising solid-disc behavior.
+    // `sanitize-polygon-with-holes` runs downstream and flips winding
+    // as needed, so we don't pre-reverse here.
+    polygon: { outer: circleToPolygon(outerD, 48), holes: [circleToPolygon(innerD, 48)] },
   }
 }
 

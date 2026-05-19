@@ -19,6 +19,7 @@ import {
   type OperationsExportInput,
 } from "@/app/dashboard/_components/dashboard-export-utils"
 import { buildOperationsPdf } from "@/app/dashboard/_components/dashboard-pdf"
+import { DEFAULT_ORGANIZATION_PREFERENCES } from "@/src/infrastructure/models/organization-preferences"
 
 const FIXTURE: OperationsExportInput = {
   period: "week",
@@ -51,6 +52,7 @@ const FIXTURE: OperationsExportInput = {
       whenLabel: "yesterday",
     },
   ],
+  organizationPreferences: DEFAULT_ORGANIZATION_PREFERENCES,
 }
 
 describe("buildOperationsCsv", () => {
@@ -81,6 +83,32 @@ describe("buildOperationsCsv", () => {
     expect(rows[headerIdx + 1]).toEqual(["Bucket", "EPDM 60A", "Neoprene"])
     expect(rows[headerIdx + 2]).toEqual(["Mon", 12.4, 3.1])
     expect(rows[headerIdx + 3]).toEqual(["Tue", 0, 8.7])
+  })
+
+  it("uses 'sq ft' in the utilization title for imperial orgs (PR 2d)", () => {
+    const { rows } = buildOperationsCsv(FIXTURE)
+    const titleRow = rows.find((r) => typeof r[0] === "string" && r[0].includes("Utilization (7d)"))
+    expect(titleRow?.[0]).toBe("Utilization (7d) — sq ft by material")
+  })
+
+  it("flips the utilization title + cell scale to m² for metric orgs (PR 2d)", () => {
+    const metric: OperationsExportInput = {
+      ...FIXTURE,
+      organizationPreferences: { ...DEFAULT_ORGANIZATION_PREFERENCES, unitSystem: "metric" },
+    }
+    const { rows } = buildOperationsCsv(metric)
+    const titleRow = rows.find((r) => typeof r[0] === "string" && r[0].includes("Utilization (7d)"))
+    expect(titleRow?.[0]).toBe("Utilization (7d) — m² by material")
+    // Mon row: 12.4 sqft × 0.09290304 ≈ 1.1519... m². 3.1 sqft × 0.09290304 ≈ 0.288... m².
+    const monRow = rows.find((r) => r[0] === "Mon")
+    expect(monRow).toBeDefined()
+    if (!monRow) return
+    const [, cell1, cell2] = monRow
+    if (typeof cell1 !== "number" || typeof cell2 !== "number") {
+      throw new Error(`Expected numeric utilization cells, got ${typeof cell1}, ${typeof cell2}`)
+    }
+    expect(cell1).toBeCloseTo(1.151998, 5)
+    expect(cell2).toBeCloseTo(0.28799942, 5)
   })
 
   it("appends the recent cuts table with the four expected columns", () => {

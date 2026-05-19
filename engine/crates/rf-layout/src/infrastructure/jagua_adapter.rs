@@ -5,7 +5,9 @@ use crate::infrastructure::warm_start::SeedPlacement;
 use jagua_rs::collision_detection::CDEConfig;
 use jagua_rs::geometry::fail_fast::SPSurrogateConfig;
 use jagua_rs::geometry::DTransformation;
-use jagua_rs::io::ext_repr::{ExtContainer, ExtItem as BaseExtItem, ExtSPolygon, ExtShape};
+use jagua_rs::io::ext_repr::{
+    ExtContainer, ExtItem as BaseExtItem, ExtPolygon, ExtSPolygon, ExtShape,
+};
 use jagua_rs::io::import::Importer;
 use jagua_rs::probs::bpp::entities::{BPInstance, BPLayoutType, BPPlacement};
 use jagua_rs::probs::bpp::io::ext_repr::{ExtBPInstance, ExtBin, ExtItem as BpExtItem};
@@ -169,10 +171,13 @@ pub fn to_jagua_instance(
 }
 
 fn build_ext_item(id: u64, part: &Part) -> Result<BpExtItem, PackError> {
-    let polygon = part.polygon_slice();
-    if polygon.len() < 3 {
+    let polygon = part
+        .polygon
+        .as_ref()
+        .expect("Part.polygon was None — orchestrator must materialize before adapter");
+    if polygon.outer().points().len() < 3 {
         return Err(PackError::EngineFailed(format!(
-            "part '{}' polygon has fewer than 3 vertices",
+            "part '{}' outer polygon has fewer than 3 vertices",
             part.shape_id
         )));
     }
@@ -183,10 +188,43 @@ fn build_ext_item(id: u64, part: &Part) -> Result<BpExtItem, PackError> {
         )));
     }
 
-    let points: Vec<(f32, f32)> = polygon
+    let outer_points: Vec<(f32, f32)> = polygon
+        .outer()
+        .points()
         .iter()
-        .map(|p| Ok((finite_f32(p.x, "polygon.x")?, finite_f32(p.y, "polygon.y")?)))
+        .map(|p| {
+            Ok((
+                finite_f32(p.x, "polygon.outer.x")?,
+                finite_f32(p.y, "polygon.outer.y")?,
+            ))
+        })
         .collect::<Result<_, PackError>>()?;
+
+    let shape = if polygon.is_simple() {
+        ExtShape::SimplePolygon(ExtSPolygon(outer_points))
+    } else {
+        let inner: Vec<ExtSPolygon> = polygon
+            .holes()
+            .iter()
+            .map(|h| {
+                let pts: Vec<(f32, f32)> = h
+                    .points()
+                    .iter()
+                    .map(|p| {
+                        Ok((
+                            finite_f32(p.x, "polygon.hole.x")?,
+                            finite_f32(p.y, "polygon.hole.y")?,
+                        ))
+                    })
+                    .collect::<Result<_, PackError>>()?;
+                Ok::<_, PackError>(ExtSPolygon(pts))
+            })
+            .collect::<Result<_, PackError>>()?;
+        ExtShape::Polygon(ExtPolygon {
+            outer: ExtSPolygon(outer_points),
+            inner,
+        })
+    };
 
     // Rotation policy:
     //   `allow_rotation = false` -> fixed at 0 degrees.
@@ -218,7 +256,7 @@ fn build_ext_item(id: u64, part: &Part) -> Result<BpExtItem, PackError> {
         base: BaseExtItem {
             id,
             allowed_orientations,
-            shape: ExtShape::SimplePolygon(ExtSPolygon(points)),
+            shape,
             min_quality: None,
         },
         demand: part.quantity as u64,
@@ -272,12 +310,15 @@ mod tests {
         Part {
             shape_id: "rect-a".into(),
             quantity: 1,
-            polygon: Some(vec![
-                rf_geom::domain::Point2D::new(0.0, 0.0),
-                rf_geom::domain::Point2D::new(24.0, 0.0),
-                rf_geom::domain::Point2D::new(24.0, 12.0),
-                rf_geom::domain::Point2D::new(0.0, 12.0),
-            ]),
+            polygon: Some(
+                rf_geom::PolygonWithHoles::from_outer_points(vec![
+                    rf_geom::domain::Point2D::new(0.0, 0.0),
+                    rf_geom::domain::Point2D::new(24.0, 0.0),
+                    rf_geom::domain::Point2D::new(24.0, 12.0),
+                    rf_geom::domain::Point2D::new(0.0, 12.0),
+                ])
+                .expect("rect polygon"),
+            ),
             shape_spec: None,
             allow_rotation: true,
             grain_axis: None,
@@ -322,14 +363,23 @@ mod tests {
 
     #[test]
     fn rejects_degenerate_polygon() {
-        let bins = vec![test_bin()];
-        let mut part = test_rect_part();
-        part.polygon = Some(vec![
-            rf_geom::domain::Point2D::new(0.0, 0.0),
-            rf_geom::domain::Point2D::new(1.0, 0.0),
-        ]); // only 2 vertices
-        let r = to_jagua_instance(&bins, &[part], 0.125);
-        assert!(r.is_err(), "polygon with <3 vertices should be rejected");
+        // Degenerate polygons (<3 vertices) are now rejected at the
+        // `PolygonWithHoles` / `Polygon` constructor boundary — the
+        // `Part.polygon` type alone cannot hold a <3-vertex outer ring.
+        // Verifying via the serde wire-layer (the only ingress where a
+        // degenerate polygon can be supplied) keeps the original
+        // "engine refuses degenerate input" contract intact.
+        use crate::domain::PackRequest;
+        let json = r#"{
+            "bins":[{"binId":"b1","width":48,"height":96,"kind":"fresh"}],
+            "clearance":0.125,
+            "items":[{"shapeId":"deg","quantity":1,"polygon":[{"x":0,"y":0},{"x":1,"y":0}],"allowRotation":true}]
+        }"#;
+        let r: Result<PackRequest, _> = serde_json::from_str(json);
+        assert!(
+            r.is_err(),
+            "polygon with <3 vertices should be rejected at deserialize"
+        );
     }
 
     #[test]
@@ -344,7 +394,19 @@ mod tests {
     fn rejects_nan_coordinate() {
         let bins = vec![test_bin()];
         let mut part = test_rect_part();
-        part.polygon.as_mut().expect("test fixture has polygon")[0].x = f64::NAN;
+        // Rebuild the part polygon with a NaN x-coord on vertex 0. The
+        // `PolygonWithHoles::from_outer_points` constructor accepts NaN
+        // (only vertex count is validated upstream) — the jagua adapter
+        // is the layer that must reject it.
+        part.polygon = Some(
+            rf_geom::PolygonWithHoles::from_outer_points(vec![
+                rf_geom::domain::Point2D::new(f64::NAN, 0.0),
+                rf_geom::domain::Point2D::new(24.0, 0.0),
+                rf_geom::domain::Point2D::new(24.0, 12.0),
+                rf_geom::domain::Point2D::new(0.0, 12.0),
+            ])
+            .expect("rect polygon with NaN vertex"),
+        );
         let r = to_jagua_instance(&bins, &[part], 0.125);
         assert!(r.is_err(), "NaN coordinate should be rejected");
     }
@@ -421,5 +483,60 @@ mod tests {
         part.allow_rotation = false;
         let item = build_ext_item(0, &part).expect("build_ext_item ok");
         assert_eq!(item.base.allowed_orientations, Some(vec![0.0]));
+    }
+
+    fn ring_part() -> Part {
+        // Outer 10x10 square with a 4x4 hole centered inside.
+        let outer = rf_geom::Polygon::new(vec![
+            rf_geom::domain::Point2D::new(0.0, 0.0),
+            rf_geom::domain::Point2D::new(10.0, 0.0),
+            rf_geom::domain::Point2D::new(10.0, 10.0),
+            rf_geom::domain::Point2D::new(0.0, 10.0),
+        ])
+        .unwrap();
+        let hole = rf_geom::Polygon::new(vec![
+            rf_geom::domain::Point2D::new(3.0, 3.0),
+            rf_geom::domain::Point2D::new(7.0, 3.0),
+            rf_geom::domain::Point2D::new(7.0, 7.0),
+            rf_geom::domain::Point2D::new(3.0, 7.0),
+        ])
+        .unwrap();
+
+        Part {
+            shape_id: "ring-a".into(),
+            quantity: 1,
+            polygon: Some(rf_geom::PolygonWithHoles::new(outer, vec![hole])),
+            shape_spec: None,
+            allow_rotation: true,
+            grain_axis: None,
+            difficulty: None,
+            tag: None,
+        }
+    }
+
+    #[test]
+    fn part_with_holes_produces_ext_polygon_not_simple() {
+        use jagua_rs::io::ext_repr::ExtShape;
+
+        let item = build_ext_item(0, &ring_part()).expect("build_ext_item ok");
+        match item.base.shape {
+            ExtShape::Polygon(poly) => {
+                assert_eq!(poly.outer.0.len(), 4, "outer has 4 vertices");
+                assert_eq!(poly.inner.len(), 1, "one hole");
+                assert_eq!(poly.inner[0].0.len(), 4, "hole has 4 vertices");
+            }
+            _ => panic!("expected ExtShape::Polygon for holed part"),
+        }
+    }
+
+    #[test]
+    fn part_without_holes_still_produces_ext_simple_polygon() {
+        use jagua_rs::io::ext_repr::ExtShape;
+
+        let item = build_ext_item(0, &test_rect_part()).expect("build_ext_item ok");
+        match item.base.shape {
+            ExtShape::SimplePolygon(_) => {}
+            _ => panic!("expected ExtShape::SimplePolygon for non-holed part"),
+        }
     }
 }

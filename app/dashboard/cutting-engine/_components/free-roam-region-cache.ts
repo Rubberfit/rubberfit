@@ -75,10 +75,22 @@ function buildTemplateGeomKey(template: PartTemplate): string {
   const w = template.width ?? template.diameter ?? 12
   const h = template.length ?? template.height ?? template.diameter ?? 12
   const d = template.diameter ?? 0
-  const polyHash = template.polygon
-    ? template.polygon.map((p) => `${Math.round(p.x * 1e4)},${Math.round(p.y * 1e4)}`).join("|")
+  const polygon = template.polygon
+  const polyHash = polygon
+    ? polygon.outer
+        .map((p) => `${Math.round(p.x * 1e4)},${Math.round(p.y * 1e4)}`)
+        .join("|")
     : ""
-  return `${template.id}|${template.partType}|${w}|${h}|${d}|${polyHash}`
+  const holesHash = polygon
+    ? polygon.holes
+        .map((hole) =>
+          hole
+            .map((p) => `${Math.round(p.x * 1e4)},${Math.round(p.y * 1e4)}`)
+            .join(",")
+        )
+        .join(";")
+    : ""
+  return `${template.id}|${template.partType}|${w}|${h}|${d}|${polyHash}|${holesHash}`
 }
 
 function buildPlacementGeomKey(placement: ManualPlacement, templateGeomKey: string): string {

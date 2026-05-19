@@ -113,25 +113,16 @@ fn state_from_assignment(a: &FfdAssignment) -> (AssignmentState, OverflowState) 
 }
 
 // ---------------------------------------------------------------------------
-// Geometry + scoring helpers.
+// Scoring helpers.
 // ---------------------------------------------------------------------------
 
-/// Shoelace polygon area (absolute).
-fn polygon_area(poly: &[rf_geom::domain::Point2D]) -> f64 {
-    let mut s = 0.0;
-    for i in 0..poly.len() {
-        let a = poly[i];
-        let b = poly[(i + 1) % poly.len()];
-        s += a.x * b.y - b.x * a.y;
-    }
-    s.abs() / 2.0
-}
-
-/// Precompute area per shape_id (polygon, not bbox â€” Codex sign-off fix).
+/// Precompute area per shape_id (polygon, not bbox — Codex sign-off fix).
+/// Uses net polygon area (outer − holes) so gasket-class parts don't
+/// overstate `used` in `score_state` (CodeRabbit PR 0a phase-end finding).
 fn item_areas(items: &[Part]) -> HashMap<String, f64> {
     items
         .iter()
-        .map(|p| (p.shape_id.clone(), polygon_area(p.polygon_slice())))
+        .map(|p| (p.shape_id.clone(), p.net_polygon_area()))
         .collect()
 }
 
@@ -185,7 +176,7 @@ fn shape_sort_keys(items: &[Part]) -> HashMap<String, (f64, f64)> {
     items
         .iter()
         .map(|p| {
-            let bbox = rf_geom::application::bbox_of(p.polygon_slice()).unwrap_or((
+            let bbox = rf_geom::application::bbox_of(p.outer_slice()).unwrap_or((
                 rf_geom::domain::Point2D::new(0.0, 0.0),
                 rf_geom::domain::Point2D::new(0.0, 0.0),
             ));
@@ -794,17 +785,21 @@ mod tests {
     use super::*;
     use crate::domain::{Bin, BinKind, Part};
     use rf_geom::domain::Point2D;
+    use rf_geom::PolygonWithHoles;
 
     fn rect_part(id: &str, qty: u32, w: f64, h: f64) -> Part {
         Part {
             shape_id: id.into(),
             quantity: qty,
-            polygon: Some(vec![
-                Point2D::new(0.0, 0.0),
-                Point2D::new(w, 0.0),
-                Point2D::new(w, h),
-                Point2D::new(0.0, h),
-            ]),
+            polygon: Some(
+                PolygonWithHoles::from_outer_points(vec![
+                    Point2D::new(0.0, 0.0),
+                    Point2D::new(w, 0.0),
+                    Point2D::new(w, h),
+                    Point2D::new(0.0, h),
+                ])
+                .expect("rect polygon"),
+            ),
             shape_spec: None,
             allow_rotation: false,
             grain_axis: None,

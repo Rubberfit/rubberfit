@@ -90,7 +90,7 @@ const rectangle: ShapeDefinition = {
     width,
     length,
     renderShape: "rect",
-    polygon: rectToPolygon(width, length),
+    polygon: { outer: rectToPolygon(width, length), holes: [] },
   }),
 }
 
@@ -110,7 +110,7 @@ const square: ShapeDefinition = {
     width: side,
     length: side,
     renderShape: "rect",
-    polygon: rectToPolygon(side, side),
+    polygon: { outer: rectToPolygon(side, side), holes: [] },
   }),
 }
 
@@ -131,7 +131,7 @@ const circle: ShapeDefinition = {
     width: diameter,
     length: diameter,
     renderShape: "circle",
-    polygon: circleToPolygon(diameter, 24),
+    polygon: { outer: circleToPolygon(diameter, 24), holes: [] },
   }),
 }
 
@@ -171,11 +171,36 @@ const ring: ShapeDefinition = {
     outerRadius: outerDiameter / 2,
     renderShape: "ring",
     // Konva's <Ring> primitive renders natively from innerRadius +
-    // outerRadius, so the polygon is only used for collision / waste
-    // math. Outer boundary alone is sufficient — a hit inside the
-    // inner hole still overlaps the part for drag-collision purposes.
-    polygon: ringOuterOnlyPolygon(outerDiameter, 48),
+    // outerRadius. For Free-roam collision + waste math we ALSO
+    // declare the inner hole explicitly via `polygon.holes` so the
+    // generic polygon-with-holes collision path (PR 0b) treats the
+    // cutout as a void without needing the ring-specific innerRadius
+    // fallback.
+    polygon: {
+      outer: ringOuterOnlyPolygon(outerDiameter, 48),
+      holes: [centerCircleInBbox(innerDiameter, outerDiameter, 48)],
+    },
   }),
+}
+
+// Inner-hole polygon for a ring template: a circle of `holeDiameter`
+// centred inside an `outerDiameter × outerDiameter` bbox (which is
+// where `ringOuterOnlyPolygon` anchors the outer ring). `circleToPolygon`
+// alone would center the hole at (holeDiameter/2, holeDiameter/2),
+// shifted off-center for any ring whose hole is smaller than the
+// outer — so we offset by the difference here.
+function centerCircleInBbox(
+  holeDiameter: number,
+  outerDiameter: number,
+  segments: number
+): { x: number; y: number }[] {
+  const cx = outerDiameter / 2
+  const cy = outerDiameter / 2
+  const r = holeDiameter / 2
+  return Array.from({ length: segments }, (_, i) => {
+    const angle = (2 * Math.PI * i) / segments
+    return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) }
+  })
 }
 
 const ellipse: ShapeDefinition = {
@@ -195,7 +220,7 @@ const ellipse: ShapeDefinition = {
     width,
     length,
     renderShape: "ellipse",
-    polygon: ellipseToPolygon(width, length, 48),
+    polygon: { outer: ellipseToPolygon(width, length, 48), holes: [] },
   }),
 }
 
@@ -216,7 +241,7 @@ const triangle: ShapeDefinition = {
     width: baseWidth,
     length: height,
     renderShape: "triangle",
-    polygon: triangleToPolygon(baseWidth, height),
+    polygon: { outer: triangleToPolygon(baseWidth, height), holes: [] },
   }),
 }
 
@@ -254,7 +279,7 @@ const ngon: ShapeDefinition = {
       width: radius * 2,
       length: radius * 2,
       renderShape: "ngon",
-      polygon: poly,
+      polygon: { outer: poly, holes: [] },
     }
   },
 }
@@ -295,7 +320,7 @@ const star: ShapeDefinition = {
       width: outerRadius * 2,
       length: outerRadius * 2,
       renderShape: "star",
-      polygon: poly,
+      polygon: { outer: poly, holes: [] },
     }
   },
 }

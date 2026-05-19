@@ -48,25 +48,42 @@ Per-domain catalogs — each one lists what exists, with file paths and one-line
 - src/
   - Clean architecture styled directory
   - application/
+    - billing/
+      - `subscription-gate.ts` — pure Stripe subscription status allow/block + recovery-intent mapping
     - services/ — service interfaces
+      - `stripe-client.service.interface.ts` — narrow Stripe SDK surface used by billing use-cases
     - repositories/ — repository interfaces
     - use-cases/ — business-logic orchestrators (complex ops only; pure CRUD skips this layer)
+      - `billing/` — onboarding org creation and Stripe Checkout session orchestration
   - entities/
     - Models and custom errors
   - infrastructure/
     - services/ and repositories/ — Supabase-backed implementations
+      - `organizationBillingService.ts` — RLS-respecting subscription gate reads for proxy and server actions
       - `rollBarcodeAssetService.ts` — stores generated roll barcode PNGs in Supabase Storage and stamps barcode metadata onto `rolls`
+      - `stripeClientService.ts` — DI adapter around the lazy Stripe SDK client (`@/src/infrastructure/stripe/client.ts`)
+    - stripe/
+      - `client.ts` — lazy server-side Stripe SDK client pinned to the rollout API version
     - supabase/ — SQL migrations, runtime-aware client resolver, RLS-respecting `getDatabaseClient()`; see [`src/infrastructure/supabase/README.md`](./src/infrastructure/supabase/README.md). Roll barcode columns live in `schema_inventory.sql`; the `roll-barcodes` storage bucket is in `storage_buckets.sql`.
   - interface-adapters/
     - Reserved for controllers. Stays empty — server actions in `app/actions/<domain>.ts` fill the controller role.
 
 - app/
   - Frameworks & Drivers Layer — Next.js pages, hooks, components, styles
-  - `actions/<domain>.ts` — server actions ("use server"). One file per domain — see [`app/actions/README.md`](./app/actions/README.md) for the per-file catalog (10 files at last count: `active-tenant.ts`, `purchase-orders.ts`, `po-reconciliation.ts`, `reorder.ts`, `users.ts`, `materials.ts`, `inventory.ts`, `profile.ts`, `cut-history.ts`, `invitations.ts`). Each export is a hard server-only entrypoint that callers `await` from client code. Public input is `z.input<typeof schema>` derived from the Zod schema (which is the source of truth for the runtime parse contract) — clients can't spoof identity because actions inject `actor` from `requireAuthenticatedUser()` after parsing.
-  - `server/auth/` — `requireAuthenticatedUser`, `requirePermission`, `requireActiveTenant`, the active-tenant cookie wrapper, and the three typed error classes. Plain functions, NOT registered in TSyringe (request-scoped auth must not enter a singleton container).
+  - `actions/<domain>.ts` — server actions ("use server"). One file per domain — see [`app/actions/README.md`](./app/actions/README.md) for the per-file catalog. Each export is a hard server-only entrypoint that callers `await` from client code. Public input is `z.input<typeof schema>` derived from the Zod schema (which is the source of truth for the runtime parse contract) — clients can't spoof identity because actions inject `actor` from `requireAuthenticatedUser()` after parsing.
+  - `checkout/` — pre-dashboard billing recovery / Stripe Checkout shell with no dashboard sidebar; delegates form UI to `_components/checkout-form.tsx`
+  - `server/auth/` — `requireAuthenticatedUser`, `requirePermission`, `requireActiveTenant`, `requireActiveSubscription`, the active-tenant cookie wrapper, and typed auth / subscription error classes. Plain functions, NOT registered in TSyringe (request-scoped auth must not enter a singleton container).
+
   - `server/database/register-factory.ts` — installs the cookie-bound `getDatabaseClient` factory. Server actions call `ensureDatabaseFactoryRegistered()` as their first line.
   - `r/[partNumber]/pdf/route.ts` — public roll-info PDF response used by printed QR labels
   - `dashboard/cutting-engine/_components/cut-load-utils.ts` — pure helpers that hydrate a `cut_history` row back into the cutting engine (per-template partType, dimensions, quantities). Extracted for unit-testability; consumed by `page.tsx` `handleLoadCut`.
+  - `lib/pdf/` — Phase 7 shared PDF design system (tokens, chrome, primitives, pagination). Pure jsPDF — no DOM access. Composed by every per-PDF builder under `app/dashboard/**/_components/*-pdf.ts` and the `app/r/**` + `app/api/cuts/**` routes. Purity guarded by `tests/pdf/chrome-purity.test.ts`.
+
+- e2e/
+  - Playwright browser tests and service-role fixtures
+  - `stripe-portal-tier-change.spec.ts` — signed Stripe webhook loop proving Portal-driven price rotation updates DB tier/interval and billing UI state
+  - fixtures/
+    - `stripe-events.ts` — Stripe-backed org setup, signed webhook payload builders, and stripe event cleanup helpers
 
 - proxy.ts — Next.js request proxy for dashboard auth and permission gating
 - engine/ — Rust nesting workspace (`rf-geom`, `rf-layout`, `pack-cli`, `rf-api`); the canonical packer for every AutoNest pack

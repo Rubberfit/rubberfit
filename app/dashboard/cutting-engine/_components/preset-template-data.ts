@@ -1,6 +1,6 @@
 import type { SimplePartType } from "./NestingVisualizer"
 import type { RenderShape } from "./layout-model"
-import type { Point2D } from "@/nesting/types"
+import type { PolygonWithHoles } from "@/src/application/packing/types"
 import {
   CYLINDER_TEMPLATES,
   CONE_TEMPLATES,
@@ -8,7 +8,10 @@ import {
 } from "./preset-template-data-shapes"
 
 type TemplateCategory = "standard" | "large" | "narrow" | "custom"
-type SupportedPartType = Exclude<SimplePartType, "circle">
+// Polygons are upload-only (DXF imports) and never appear in the
+// saved-custom library, so they're excluded from `SupportedPartType`
+// alongside `circle`.
+type SupportedPartType = Exclude<SimplePartType, "circle" | "polygon">
 
 export type { TemplateCategory, SupportedPartType }
 
@@ -38,13 +41,23 @@ export interface PartTemplate {
    */
   renderShape?: RenderShape
   /**
-   * Optional local-coords polygon (bbox anchored at 0, 0). Shape
-   * library templates (triangle, n-gon, star, ring, ellipse, etc.)
-   * populate this so Free-roam's collision / waste / render paths
-   * don't need a partType case for every new shape. Ignored by the
-   * Auto-nest pipeline.
+   * Optional local-coords polygon with holes (bbox anchored at 0, 0).
+   * Shape library templates (triangle, n-gon, star, ring, ellipse,
+   * etc.) populate `polygon.outer` so Free-roam's collision / waste /
+   * render paths don't need a partType case for every new shape. Hole-
+   * bearing primitives (ring gaskets, full-face gaskets with bolt
+   * circles, multi-loop CAD imports) also populate `polygon.holes` so
+   * collision / render / PDF paths can treat the holes as voids. DXF
+   * imports (`partType === "polygon"`) populate this too — that path
+   * is the one Auto-nest path that takes raw vertices.
    */
-  polygon?: Point2D[]
+  polygon?: PolygonWithHoles
+  /**
+   * Original source filename for DXF-imported polygon templates. Used
+   * by the parts-queue panel for display copy ("bracket.dxf"). Other
+   * template kinds leave this undefined.
+   */
+  sourceFile?: string
 }
 
 /**

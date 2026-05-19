@@ -28,7 +28,8 @@ use crate::application::polish::{
     placements_have_pack_surface_overlap, polish_placements, PolishConfig,
 };
 use crate::domain::{Bin, PackResult, Placement};
-use rf_geom::domain::Point2D;
+use rf_geom::domain::{Point2D, Polygon};
+use rf_geom::PolygonWithHoles;
 use std::collections::HashMap;
 
 /// Minimum improvement (sq in of freed occupied area) to accept a move.
@@ -148,7 +149,7 @@ fn simulate_move_occupied(
     polish_cfg: &PolishConfig,
 ) -> Option<f64> {
     let item = &result.placements[placement_idx];
-    let (i_bbox_w, i_bbox_h) = polygon_bbox_dims(&item.polygon);
+    let (i_bbox_w, i_bbox_h) = polygon_bbox_dims(item.polygon.outer().points());
     let dst_bin = &bins[dst_bin_idx];
     if i_bbox_w > dst_bin.width + 1e-6 || i_bbox_h > dst_bin.height + 1e-6 {
         return None;
@@ -177,7 +178,8 @@ fn simulate_move_occupied(
     // stack. Stack bottom-up; initial y is the current max_y of dst.
     let dst_existing_max_y = dst_placements
         .iter()
-        .map(|p| polygon_bbox(&p.polygon).3)
+        .map(placement_bbox)
+        .map(|bbox| bbox.3)
         .fold(0.0_f64, f64::max);
     // Guard: if the moved item at the top position wouldn't fit
     // within dst bin height, bail on this move.
@@ -238,7 +240,8 @@ fn apply_move(
         .placements
         .iter()
         .filter(|p| p.bin_id == dst_id)
-        .map(|p| polygon_bbox(&p.polygon).3)
+        .map(placement_bbox)
+        .map(|bbox| bbox.3)
         .fold(0.0_f64, f64::max);
     let moved = relocate_placement(&moved_original, &dst_id, 0.0, dst_existing_max_y);
     result.placements.push(moved);
@@ -281,19 +284,11 @@ fn apply_move(
             .iter()
             .filter(|p| p.bin_id == bin.bin_id)
             .collect();
-        let used_area: f64 = this_bin_placements
-            .iter()
-            .map(|p| polygon_area(&p.polygon))
-            .sum();
-        let (_, _, max_x, max_y) = this_bin_placements
-            .iter()
-            .map(|p| polygon_bbox(&p.polygon))
-            .fold(
-                (f64::INFINITY, f64::INFINITY, 0.0_f64, 0.0_f64),
-                |(mnx, mny, mxx, mxy), (a, b, c, d)| {
-                    (mnx.min(a), mny.min(b), mxx.max(c), mxy.max(d))
-                },
-            );
+        let used_area: f64 = this_bin_placements.iter().map(|p| p.polygon.area()).sum();
+        let (_, _, max_x, max_y) = this_bin_placements.iter().map(|p| placement_bbox(p)).fold(
+            (f64::INFINITY, f64::INFINITY, 0.0_f64, 0.0_f64),
+            |(mnx, mny, mxx, mxy), (a, b, c, d)| (mnx.min(a), mny.min(b), mxx.max(c), mxy.max(d)),
+        );
         let stock_area = bin.width * bin.height;
         let waste_area = (stock_area - used_area).max(0.0);
         let efficiency = if stock_area > 0.0 {
@@ -363,14 +358,10 @@ fn total_occupied_area(result: &PackResult, bins: &[Bin]) -> f64 {
 
 fn relocate_placement(src: &Placement, new_bin_id: &str, tx: f64, ty: f64) -> Placement {
     // Translate polygon so its bbox min is at (tx, ty).
-    let (min_x, min_y, _, _) = polygon_bbox(&src.polygon);
+    let (min_x, min_y, _, _) = placement_bbox(src);
     let dx = tx - min_x;
     let dy = ty - min_y;
-    let polygon = src
-        .polygon
-        .iter()
-        .map(|v| Point2D::new(v.x + dx, v.y + dy))
-        .collect::<Vec<_>>();
+    let polygon = translate_polygon_with_holes(&src.polygon, dx, dy);
     let pack_polygon = src.pack_polygon.as_ref().map(|poly| {
         poly.iter()
             .map(|v| Point2D::new(v.x + dx, v.y + dy))
@@ -398,6 +389,11 @@ fn polygon_bbox(poly: &[Point2D]) -> (f64, f64, f64, f64) {
     )
 }
 
+fn placement_bbox(p: &Placement) -> (f64, f64, f64, f64) {
+    let (min, max) = p.polygon.bbox();
+    (min.x, min.y, max.x, max.y)
+}
+
 fn polygon_bbox_dims(poly: &[Point2D]) -> (f64, f64) {
     let (mnx, mny, mxx, mxy) = polygon_bbox(poly);
     ((mxx - mnx).max(0.0), (mxy - mny).max(0.0))
@@ -406,24 +402,39 @@ fn polygon_bbox_dims(poly: &[Point2D]) -> (f64, f64) {
 fn max_y_of(placements: &[Placement]) -> f64 {
     placements
         .iter()
-        .map(|p| polygon_bbox(&p.polygon).3)
+        .map(placement_bbox)
+        .map(|bbox| bbox.3)
         .fold(0.0_f64, f64::max)
 }
 
-fn polygon_area(poly: &[Point2D]) -> f64 {
-    let mut s = 0.0;
-    for i in 0..poly.len() {
-        let a = poly[i];
-        let b = poly[(i + 1) % poly.len()];
-        s += a.x * b.y - b.x * a.y;
-    }
-    s.abs() / 2.0
+fn translate_polygon(poly: &Polygon, dx: f64, dy: f64) -> Polygon {
+    Polygon::new(
+        poly.points()
+            .iter()
+            .map(|v| Point2D::new(v.x + dx, v.y + dy))
+            .collect(),
+    )
+    .expect("translated polygon should preserve vertex count")
+}
+
+fn translate_polygon_with_holes(poly: &PolygonWithHoles, dx: f64, dy: f64) -> PolygonWithHoles {
+    let outer = translate_polygon(poly.outer(), dx, dy);
+    let holes = poly
+        .holes()
+        .iter()
+        .map(|hole| translate_polygon(hole, dx, dy))
+        .collect();
+    PolygonWithHoles::new(outer, holes)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::domain::{BinKind, BinResult};
+
+    fn simple_polygon(points: Vec<Point2D>) -> PolygonWithHoles {
+        PolygonWithHoles::from_outer_points(points).unwrap()
+    }
 
     fn rect_placement(shape_id: &str, bin_id: &str, x: f64, y: f64, w: f64, h: f64) -> Placement {
         Placement {
@@ -433,12 +444,12 @@ mod tests {
             x,
             y,
             rotation_rad: 0.0,
-            polygon: vec![
+            polygon: simple_polygon(vec![
                 Point2D::new(x, y),
                 Point2D::new(x + w, y),
                 Point2D::new(x + w, y + h),
                 Point2D::new(x, y + h),
-            ],
+            ]),
             width: w,
             height: h,
             difficulty: None,
@@ -559,7 +570,7 @@ mod tests {
         let moved = relocate_placement(&p, "B", 5.0, 7.0);
 
         assert_eq!(moved.bin_id, "B");
-        assert_eq!(moved.polygon[0], Point2D::new(5.0, 7.0));
+        assert_eq!(moved.polygon.outer().points()[0], Point2D::new(5.0, 7.0));
         let hull = moved.pack_polygon.expect("test placement has pack hull");
         assert_eq!(hull[0], Point2D::new(5.0, 7.0));
         assert_eq!(hull[2], Point2D::new(17.0, 19.0));

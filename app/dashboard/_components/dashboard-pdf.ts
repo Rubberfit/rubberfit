@@ -1,101 +1,50 @@
 import jsPDF from "jspdf"
 import { format } from "date-fns"
 
-import { ARC_ANCHOR_LOGO_BASE64 } from "@/app/dashboard/cutting-engine/_components/arc-anchor-logo"
+import {
+  contentStartY,
+  drawInternalChrome,
+  drawKpiCard,
+  drawRuledTable,
+  drawSectionDivider,
+  ensureSpace,
+  INTERNAL_PAGE,
+  KPI_GAP,
+  KPI_MIN_HEIGHT,
+  resetColors,
+  SLATE,
+  stampFooterOnEveryPage,
+  type TableColumn,
+  TYPE,
+} from "@/app/lib/pdf"
+import {
+  formatInUserTimeZone,
+  formatUserDate,
+} from "@/src/application/preferences/user-date-format"
+import {
+  getAreaUnitLabel,
+  getDisplayAreaValue,
+} from "@/src/application/preferences/user-unit-display"
 
 import type { OperationsExportInput } from "./dashboard-export-utils"
 
-// ── Constants (mirrors cut-history-pdf for brand consistency) ──────────────
-
-type RGB = readonly [number, number, number]
-
-const MARGIN = 15
-const PAGE_W = 210
-const PAGE_H = 297
-const CONTENT_W = PAGE_W - MARGIN * 2
-
-const BRAND: RGB = [37, 99, 235]
-const GRAY_900: RGB = [17, 24, 39]
-const GRAY_700: RGB = [55, 65, 81]
-const GRAY_500: RGB = [107, 114, 128]
-const GRAY_200: RGB = [229, 231, 235]
-const GRAY_50: RGB = [249, 250, 251]
-const WHITE: RGB = [255, 255, 255]
-
-let cachedLogo: string | null = null
-function getLogo(): string {
-  if (!cachedLogo) {
-    cachedLogo = `data:image/jpeg;base64,${ARC_ANCHOR_LOGO_BASE64}`
-  }
-  return cachedLogo
-}
-
-function checkNewPage(doc: jsPDF, y: number, needed: number): number {
-  if (y + needed > PAGE_H - 20) {
-    doc.addPage()
-    return 20
-  }
-  return y
-}
-
 /**
- * Truncate `value` with an ellipsis so it fits within `maxWidth` mm at the
- * currently-active font. Width-aware (uses `doc.getTextWidth`) and stable
- * for any font/size. Caller must set `doc.setFont` / `doc.setFontSize`
- * before measuring — that's how jsPDF knows the metrics to use.
+ * Operations Overview — internal-canvas snapshot of the dashboard
+ * KPIs + utilization table + recent cuts. Phase 7 PR 2: adopts the
+ * shared `app/lib/pdf` chrome + primitives. Page geometry moved from
+ * A4 millimetres to A4 in points so it matches the rest of the
+ * design system; layout math is rebuilt from scratch on the new
+ * 595×842pt @ 42pt margin grid.
+ *
+ * Contracts preserved (operations-overview test pins them):
+ *   - `buildOperationsPdf(input): Blob` returns a non-empty PDF
+ *   - `downloadOperationsPdf(input)` triggers a browser download
+ *     using the same filename pattern (`operations-overview_<period>_<ts>.pdf`)
  */
-function clampText(doc: jsPDF, value: string, maxWidth: number): string {
-  if (maxWidth <= 0 || value === "") return value
-  if (doc.getTextWidth(value) <= maxWidth) return value
-  const ellipsis = "…"
-  // Binary search for the longest prefix length whose `prefix + …` fits.
-  let lo = 0
-  let hi = value.length
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2)
-    if (doc.getTextWidth(value.slice(0, mid) + ellipsis) <= maxWidth) lo = mid
-    else hi = mid - 1
-  }
-  return value.slice(0, lo) + ellipsis
-}
 
-// ── Header ─────────────────────────────────────────────────────────────────
-
-function addHeader(doc: jsPDF, input: OperationsExportInput, logo: string): number {
-  let y = 15
-
-  doc.addImage(logo, "JPEG", MARGIN, y - 3, 10, 10)
-  doc.setFontSize(14)
-  doc.setTextColor(...BRAND)
-  doc.setFont("helvetica", "bold")
-  doc.text("Rubberfit Pro", MARGIN + 13, y + 3)
-  y += 13
-
-  doc.setFontSize(20)
-  doc.setTextColor(...GRAY_900)
-  doc.text("Operations Overview", MARGIN, y)
-  y += 8
-
-  doc.setFontSize(10)
-  doc.setTextColor(...GRAY_500)
-  doc.setFont("helvetica", "normal")
-  const periodWord = input.period.charAt(0).toUpperCase() + input.period.slice(1)
-  doc.text(
-    `${periodWord} · ${input.periodLabel} · generated ${format(new Date(), "MMMM d, yyyy HH:mm")}`,
-    MARGIN,
-    y
-  )
-  y += 4
-
-  doc.setDrawColor(...BRAND)
-  doc.setLineWidth(0.6)
-  doc.line(MARGIN, y, MARGIN + CONTENT_W, y)
-  y += 5
-
-  return y
-}
-
-// ── Summary Cards ──────────────────────────────────────────────────────────
+const PAGE_W = INTERNAL_PAGE.width
+const PAGE_MARGIN = INTERNAL_PAGE.margin
+const CONTENT_W = INTERNAL_PAGE.contentWidth
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -105,234 +54,217 @@ function formatCurrency(value: number): string {
   }).format(value)
 }
 
-function addSummaryCards(doc: jsPDF, input: OperationsExportInput, y: number): number {
-  y = checkNewPage(doc, y, 32)
-  const cards = [
-    { label: "Active Rolls", value: `${input.totalActiveRolls}` },
-    { label: "Cuts This Week", value: `${input.cutsThisWeek}` },
-    { label: "Avg Waste", value: `${input.wastePercentage.toFixed(1)}%` },
-    { label: "Inventory Value", value: formatCurrency(input.inventoryValue) },
-  ]
-  const gap = 3
-  const cardW = (CONTENT_W - gap * (cards.length - 1)) / cards.length
-  const cardH = 22
-
-  for (let i = 0; i < cards.length; i++) {
-    const x = MARGIN + i * (cardW + gap)
-    doc.setFillColor(...GRAY_50)
-    doc.setDrawColor(...GRAY_200)
-    doc.roundedRect(x, y, cardW, cardH, 2, 2, "FD")
-    doc.setFontSize(7)
-    doc.setTextColor(...GRAY_500)
-    doc.setFont("helvetica", "normal")
-    doc.text(cards[i].label.toUpperCase(), x + cardW / 2, y + 7.5, { align: "center" })
-    doc.setFontSize(14)
-    doc.setTextColor(...GRAY_900)
-    doc.setFont("helvetica", "bold")
-    doc.text(cards[i].value, x + cardW / 2, y + 16, { align: "center" })
-  }
-
-  return y + cardH + 8
+function ensure(doc: jsPDF, y: number, needed: number): number {
+  return ensureSpace(doc, {
+    cursor: y,
+    neededHeight: needed,
+    canvas: "internal",
+    redrawChrome: (page) => {
+      drawInternalChrome(page, {
+        title: "OPERATIONS OVERVIEW",
+      })
+      return contentStartY("internal")
+    },
+  })
 }
 
-// ── Utilization Table ──────────────────────────────────────────────────────
+// ── Period meta-line under the chrome ───────────────────────────────────────
 
-function addUtilizationTable(doc: jsPDF, input: OperationsExportInput, y: number): number {
-  y = checkNewPage(doc, y, 24)
+function drawPeriodMeta(doc: jsPDF, input: OperationsExportInput, y: number): number {
+  doc.setFont(TYPE.caption.family, TYPE.caption.weight)
+  doc.setFontSize(TYPE.caption.size)
+  doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
+  const period = `${input.periodLabel.toUpperCase()} · ${input.period.toUpperCase()}`
+  doc.text(period, PAGE_MARGIN, y)
+  return y + TYPE.caption.lineHeight + 8
+}
 
-  doc.setFontSize(12)
-  doc.setTextColor(...GRAY_900)
-  doc.setFont("helvetica", "bold")
-  doc.text(`Utilization (${input.utilPeriod}) — sqft by material`, MARGIN, y)
-  y += 6
+// ── Summary KPI strip ───────────────────────────────────────────────────────
+
+function drawSummaryCards(doc: jsPDF, input: OperationsExportInput, y: number): number {
+  y = ensure(doc, y, KPI_MIN_HEIGHT + 24)
+  const cards: ReadonlyArray<{ label: string; value: string; unit?: string }> = [
+    { label: "Active rolls", value: String(input.totalActiveRolls) },
+    { label: "Cuts this week", value: String(input.cutsThisWeek) },
+    { label: "Avg waste", value: input.wastePercentage.toFixed(1), unit: "%" },
+    { label: "Inventory value", value: formatCurrency(input.inventoryValue) },
+  ]
+  const cardW = (CONTENT_W - KPI_GAP * (cards.length - 1)) / cards.length
+
+  for (let i = 0; i < cards.length; i += 1) {
+    const card = cards[i]
+    if (!card) continue
+    const x = PAGE_MARGIN + i * (cardW + KPI_GAP)
+    drawKpiCard(doc, { x, y, width: cardW, label: card.label, value: card.value, unit: card.unit })
+  }
+
+  return y + KPI_MIN_HEIGHT + 24
+}
+
+// ── Utilization table ───────────────────────────────────────────────────────
+
+function drawUtilizationTable(doc: jsPDF, input: OperationsExportInput, y: number): number {
+  y = ensure(doc, y, 80)
+  const orgPrefs = input.organizationPreferences
+  const areaUnit = getAreaUnitLabel(orgPrefs)
+  y = drawSectionDivider(doc, {
+    x: PAGE_MARGIN,
+    y,
+    width: CONTENT_W,
+    title: `Utilization (${input.utilPeriod}) — ${areaUnit} by material`,
+  })
+  y += 12
 
   if (input.utilization.series.length === 0 || input.utilization.materials.length === 0) {
-    doc.setFontSize(9)
-    doc.setTextColor(...GRAY_500)
-    doc.setFont("helvetica", "italic")
-    doc.text("No utilization data in this window.", MARGIN, y)
-    return y + 8
+    doc.setFont(TYPE.body.family, "italic")
+    doc.setFontSize(TYPE.body.size)
+    doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
+    doc.text("No utilization data in this window.", PAGE_MARGIN, y + TYPE.body.size)
+    return y + TYPE.body.lineHeight + 16
   }
 
-  const cols = ["Bucket", ...input.utilization.materials]
-  const colW = CONTENT_W / cols.length
+  const materials = input.utilization.materials
+  // Bucket column gets a wider slice; remainder split evenly across material cols.
+  const bucketW = 80
+  const materialW = (CONTENT_W - bucketW) / materials.length
+  // Typed annotation drops the `as const` casts (CR catch). The .map
+  // callback also gets an explicit return type so the inner literal
+  // narrows without a cast.
+  const columns: ReadonlyArray<TableColumn> = [
+    { header: "Bucket", width: bucketW },
+    ...materials.map(
+      (m): TableColumn => ({ header: m, width: materialW, align: "right", mono: true })
+    ),
+  ]
 
-  const cellPad = 4
-
-  const drawHeader = (headerY: number): number => {
-    doc.setFillColor(...BRAND)
-    doc.rect(MARGIN, headerY - 3.5, CONTENT_W, 6, "F")
-    doc.setFontSize(8)
-    doc.setTextColor(...WHITE)
-    doc.setFont("helvetica", "bold")
-    for (let i = 0; i < cols.length; i++) {
-      const cx = MARGIN + i * colW + colW / 2
-      doc.text(clampText(doc, cols[i].toUpperCase(), colW - cellPad), cx, headerY, {
-        align: "center",
-      })
+  const rows = input.utilization.series.map((row) => {
+    const cells: string[] = [String(row.label ?? "")]
+    for (const m of materials) {
+      const cell = row[m]
+      cells.push(typeof cell === "number" ? getDisplayAreaValue(cell, orgPrefs).toFixed(1) : "0.0")
     }
-    return headerY + 5
-  }
+    return { cells }
+  })
 
-  y = drawHeader(y)
-
-  for (let r = 0; r < input.utilization.series.length; r++) {
-    const beforePageCheck = y
-    y = checkNewPage(doc, y, 6)
-    if (y !== beforePageCheck) y = drawHeader(y)
-    // Body font size is re-applied per row so a page-break re-draw of
-    // the header (which sets size 8) doesn't leak into the next row.
-    doc.setFontSize(9)
-    const row = input.utilization.series[r]
-    if (r % 2 === 0) {
-      doc.setFillColor(...GRAY_50)
-      doc.rect(MARGIN, y - 3.5, CONTENT_W, 5.5, "F")
-    }
-    doc.setTextColor(...GRAY_700)
-    doc.setFont("helvetica", "normal")
-    doc.text(clampText(doc, String(row.label ?? ""), colW - cellPad), MARGIN + colW / 2, y, {
-      align: "center",
-    })
-    for (let c = 0; c < input.utilization.materials.length; c++) {
-      const material = input.utilization.materials[c]
-      const cell = row[material]
-      const value = typeof cell === "number" ? cell.toFixed(1) : "0.0"
-      doc.setTextColor(...GRAY_900)
-      doc.setFont("helvetica", "bold")
-      doc.text(value, MARGIN + (c + 1) * colW + colW / 2, y, { align: "center" })
-    }
-    y += 5.5
-  }
-
-  return y + 6
+  return drawRuledTable(doc, {
+    x: PAGE_MARGIN,
+    y,
+    columns,
+    rows,
+    pageBreak: {
+      canvas: "internal",
+      redrawChrome: (page) => {
+        drawInternalChrome(page, { title: "OPERATIONS OVERVIEW" })
+        return contentStartY("internal")
+      },
+    },
+  })
 }
 
-// ── Recent Cuts Table ──────────────────────────────────────────────────────
+// ── Recent cuts table ───────────────────────────────────────────────────────
 
-function addRecentCutsTable(doc: jsPDF, input: OperationsExportInput, y: number): number {
-  y = checkNewPage(doc, y, 24)
-
-  doc.setFontSize(12)
-  doc.setTextColor(...GRAY_900)
-  doc.setFont("helvetica", "bold")
-  doc.text("Recent Cuts", MARGIN, y)
-  y += 6
+function drawRecentCutsTable(doc: jsPDF, input: OperationsExportInput, y: number): number {
+  y = ensure(doc, y, 80)
+  y = drawSectionDivider(doc, {
+    x: PAGE_MARGIN,
+    y,
+    width: CONTENT_W,
+    title: "Recent cuts",
+  })
+  y += 12
 
   if (input.recentCuts.length === 0) {
-    doc.setFontSize(9)
-    doc.setTextColor(...GRAY_500)
-    doc.setFont("helvetica", "italic")
-    doc.text("No recent cuts.", MARGIN, y)
-    return y + 8
+    doc.setFont(TYPE.body.family, "italic")
+    doc.setFontSize(TYPE.body.size)
+    doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
+    doc.text("No recent cuts.", PAGE_MARGIN, y + TYPE.body.size)
+    return y + TYPE.body.lineHeight + 16
   }
 
-  // Column widths: Job | Operator | Util% | When
-  const widths = [0.25, 0.35, 0.18, 0.22].map((w) => CONTENT_W * w)
-  const headers = ["JOB CODE", "OPERATOR", "UTILIZATION %", "WHEN"]
+  // Job | Operator | Util% | When — widths sum to CONTENT_W.
+  const columns: ReadonlyArray<TableColumn> = [
+    { header: "Job code", width: CONTENT_W * 0.25, mono: true },
+    { header: "Operator", width: CONTENT_W * 0.35 },
+    { header: "Utilization", width: CONTENT_W * 0.18, align: "right", mono: true },
+    { header: "When", width: CONTENT_W * 0.22, align: "right" },
+  ]
 
-  const drawHeader = (headerY: number): number => {
-    doc.setFillColor(...BRAND)
-    doc.rect(MARGIN, headerY - 3.5, CONTENT_W, 6, "F")
-    doc.setFontSize(8)
-    doc.setTextColor(...WHITE)
-    doc.setFont("helvetica", "bold")
-    let cx = MARGIN + 3
-    for (let i = 0; i < headers.length; i++) {
-      doc.text(headers[i], cx, headerY)
-      cx += widths[i]
-    }
-    return headerY + 5
-  }
+  const rows = input.recentCuts.map((cut) => ({
+    cells: [cut.jobCode, cut.operator, `${cut.utilizationPct.toFixed(1)}%`, cut.whenLabel],
+  }))
 
-  y = drawHeader(y)
-
-  for (let i = 0; i < input.recentCuts.length; i++) {
-    const beforePageCheck = y
-    y = checkNewPage(doc, y, 6)
-    if (y !== beforePageCheck) y = drawHeader(y)
-    // Body font size is re-applied per row so a page-break re-draw of
-    // the header (which sets size 8) doesn't leak into the next row.
-    doc.setFontSize(9)
-    const cut = input.recentCuts[i]
-    if (i % 2 === 0) {
-      doc.setFillColor(...GRAY_50)
-      doc.rect(MARGIN, y - 3.5, CONTENT_W, 5.5, "F")
-    }
-    let x = MARGIN + 3
-    // Reserve 6mm of right padding inside each column so adjacent cells
-    // don't touch when the value is near the column edge.
-    const cellPad = 6
-    doc.setTextColor(...GRAY_900)
-    doc.setFont("helvetica", "bold")
-    doc.text(clampText(doc, cut.jobCode, widths[0] - cellPad), x, y)
-    x += widths[0]
-    doc.setTextColor(...GRAY_700)
-    doc.setFont("helvetica", "normal")
-    doc.text(clampText(doc, cut.operator, widths[1] - cellPad), x, y)
-    x += widths[1]
-    doc.setTextColor(...GRAY_900)
-    doc.setFont("helvetica", "bold")
-    doc.text(`${cut.utilizationPct.toFixed(1)}%`, x, y)
-    x += widths[2]
-    doc.setTextColor(...GRAY_500)
-    doc.setFont("helvetica", "normal")
-    doc.text(clampText(doc, cut.whenLabel, widths[3] - cellPad), x, y)
-    y += 5.5
-  }
-
-  return y + 6
+  return drawRuledTable(doc, {
+    x: PAGE_MARGIN,
+    y,
+    columns,
+    rows,
+    pageBreak: {
+      canvas: "internal",
+      redrawChrome: (page) => {
+        drawInternalChrome(page, { title: "OPERATIONS OVERVIEW" })
+        return contentStartY("internal")
+      },
+    },
+  })
 }
 
-// ── Footer ─────────────────────────────────────────────────────────────────
+// ── Public API ──────────────────────────────────────────────────────────────
 
-function addFooter(doc: jsPDF): void {
-  // jsPDF exposes `getNumberOfPages` on the doc instance as the canonical
-  // accessor; the `internal.pages.length` shape is undocumented and has
-  // shifted between major versions.
-  const totalPages = doc.getNumberOfPages()
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i)
-    doc.setDrawColor(...GRAY_200)
-    doc.setLineWidth(0.3)
-    doc.line(MARGIN, PAGE_H - 15, MARGIN + CONTENT_W, PAGE_H - 15)
-    doc.setFontSize(7)
-    doc.setTextColor(...GRAY_500)
-    doc.setFont("helvetica", "normal")
-    const mainFooter = "Rubberfit Pro — Material Optimization System "
-    doc.text(mainFooter, MARGIN, PAGE_H - 10)
-    const mainW = doc.getTextWidth(mainFooter)
-    doc.setFont("helvetica", "italic")
-    doc.text("by Arc and Anchor", MARGIN + mainW, PAGE_H - 10)
-    doc.setFont("helvetica", "normal")
-    doc.setFontSize(8)
-    doc.text(`Page ${i} of ${totalPages}`, PAGE_W - MARGIN, PAGE_H - 10, { align: "right" })
-  }
-}
-
-// ── Public API ─────────────────────────────────────────────────────────────
-
-/**
- * Build the Operations overview PDF as a Blob.
- * Pure jsPDF (no DOM dependency), so it can be unit-tested in happy-dom.
- */
 export function buildOperationsPdf(input: OperationsExportInput): Blob {
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
+  const doc = new jsPDF({
+    orientation: "portrait",
+    unit: "pt",
+    format: [PAGE_W, INTERNAL_PAGE.height],
+  })
 
   doc.setProperties({
     title: "Operations Overview",
-    subject: "Rubberfit Pro Operations Overview",
-    author: "Rubberfit Pro",
-    creator: "Rubberfit Pro",
+    subject: "Rubberfit Operations Overview",
+    author: "Rubberfit",
+    creator: "Rubberfit",
   })
 
-  const logo = getLogo()
-  let y = addHeader(doc, input, logo)
-  y = addSummaryCards(doc, input, y)
-  y = addUtilizationTable(doc, input, y)
-  addRecentCutsTable(doc, input, y)
-  addFooter(doc)
+  drawInternalChrome(doc, {
+    title: "OPERATIONS OVERVIEW",
+  })
+  resetColors(doc)
+
+  let y = contentStartY("internal")
+  y = drawPeriodMeta(doc, input, y)
+  y = drawSummaryCards(doc, input, y)
+  y = drawUtilizationTable(doc, input, y)
+  y += 16
+  drawRecentCutsTable(doc, input, y)
+
+  // Visible footer renders in the operator's chosen format. The file
+  // name (built downstream) intentionally stays in ISO so sorting and
+  // dedup remain machine-stable. The compact `HH:mm` time form (no
+  // zone abbreviation) keeps the footer single-line under es-MX +
+  // long zone names where the full `formatUserDateTime` shape would
+  // wrap or clip the right margin.
+  const docMeta = buildOperationsFooterDocMeta(input)
+  stampFooterOnEveryPage(doc, "internal", () => docMeta)
 
   return doc.output("blob")
+}
+
+/**
+ * Builds the right-aligned footer `docMeta` string for the dashboard
+ * PDF. Extracted so layout tests can measure `doc.getTextWidth(meta)`
+ * against the page's content-width budget without re-rendering the
+ * whole PDF blob. Reads `new Date()` once per call — production
+ * captures the result into a closure-local constant before passing it
+ * to `stampFooterOnEveryPage`, so the same timestamp is stamped on
+ * every page of a multi-page export.
+ */
+export function buildOperationsFooterDocMeta(input: OperationsExportInput): string {
+  const now = new Date()
+  const ts = `${formatUserDate(now, input.organizationPreferences)} ${formatInUserTimeZone(
+    now,
+    input.organizationPreferences,
+    { hour: "2-digit", minute: "2-digit", hour12: false }
+  )}`
+  return `Operations · ${input.period} · ${ts}`
 }
 
 /**

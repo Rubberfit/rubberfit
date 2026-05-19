@@ -5,6 +5,8 @@ import { Minus, Pencil, Plus } from "lucide-react"
 import type { PartTemplate } from "./preset-template-data"
 import { CAT_BADGE, MAX_TEMPLATE_QUANTITY } from "./preset-template-data"
 import { getTemplateAreaSqFt } from "./preset-utils"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import { formatAreaSqft } from "@/src/application/preferences/user-unit-display"
 
 interface QtyInputProps {
   value: number
@@ -80,6 +82,7 @@ export function PresetTemplateGrid({
   tagMap,
   fitsStock,
 }: PresetTemplateGridProps) {
+  const organizationPreferences = useOrganizationPreferences()
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
       {visible.map((template) => {
@@ -96,7 +99,9 @@ export function PresetTemplateGrid({
                   ? `cursor-pointer  border-blue-400 text-blue-900 shadow-sm ring-1 ring-inset ring-blue-200`
                   : "cursor-pointer bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 dark:bg-card dark:text-slate-100 dark:border-slate-700 dark:hover:bg-slate-700"
             }`}
-            title={disabled ? "This shape's bounding box is larger than the stock sheet." : undefined}
+            title={
+              disabled ? "This shape's bounding box is larger than the stock sheet." : undefined
+            }
           >
             <input
               type="checkbox"
@@ -144,8 +149,10 @@ export function PresetTemplateGrid({
                       {template.category}
                     </span>
                   </div>
-                  <div className="text-[11px] text-slate-500 mt-0.5  dark:text-slate-100">
-                    {getTemplateAreaSqFt(template).toFixed(1)} sq ft
+                  <div className="text-[11px] text-slate-500 mt-0.5 tabular-nums dark:text-slate-100">
+                    {formatAreaSqft(getTemplateAreaSqFt(template), organizationPreferences, {
+                      precision: 1,
+                    })}
                   </div>
                   {disabled && (
                     <div className="mt-0.5 text-[10px] font-medium text-red-600 dark:text-red-400">
@@ -187,7 +194,10 @@ export function PresetTemplateGrid({
                             event.preventDefault()
                             event.stopPropagation()
                             const current = quantities.get(template.id) ?? 1
-                            onQuantityChange(template.id, Math.min(MAX_TEMPLATE_QUANTITY, current + 1))
+                            onQuantityChange(
+                              template.id,
+                              Math.min(MAX_TEMPLATE_QUANTITY, current + 1)
+                            )
                           }}
                           className="flex h-5 w-5 items-center justify-center text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
                         >

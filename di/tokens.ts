@@ -24,6 +24,7 @@ export const TOKENS = {
   IReorderService: Symbol("IReorderService"),
   IReorderCalculationsService: Symbol("IReorderCalculationsService"),
   IRollService: Symbol("IRollService"),
+  IStripeClientService: Symbol("IStripeClientService"),
   ISupplierService: Symbol("ISupplierService"),
   ITaxService: Symbol("ITaxService"),
   ITaxApiService: Symbol("ITaxApiService"),
@@ -54,6 +55,12 @@ export const TOKENS = {
   ICutFavoritesService: Symbol("ICutFavoritesService"),
   IRollInventoryService: Symbol("IRollInventoryService"),
 
+  // Billing / organizations (Stripe rollout)
+  IOrganizationService: Symbol("IOrganizationService"),
+  IOrganizationPreferencesService: Symbol("IOrganizationPreferencesService"),
+  IUserPreferencesService: Symbol("IUserPreferencesService"),
+  IStripeWebhookService: Symbol("IStripeWebhookService"),
+
   // Use cases
   ICreatePurchaseOrderUseCase: Symbol("ICreatePurchaseOrderUseCase"),
   IUpdatePurchaseOrderUseCase: Symbol("IUpdatePurchaseOrderUseCase"),
@@ -66,13 +73,30 @@ export const TOKENS = {
   ICreateReorderPurchaseOrderUseCase: Symbol("ICreateReorderPurchaseOrderUseCase"),
   ICreateBulkReorderPurchaseOrderUseCase: Symbol("ICreateBulkReorderPurchaseOrderUseCase"),
   IRecordCutUseCase: Symbol("IRecordCutUseCase"),
+
+  // Cut-history (DDD slice that retired legacyCutHistoryService)
   IListCutHistoryUseCase: Symbol("IListCutHistoryUseCase"),
   IGetCutByIdUseCase: Symbol("IGetCutByIdUseCase"),
   IDeleteCutUseCase: Symbol("IDeleteCutUseCase"),
   IGetCutAnalyticsUseCase: Symbol("IGetCutAnalyticsUseCase"),
+
   IUpdateMaterialPricingUseCase: Symbol("IUpdateMaterialPricingUseCase"),
+
+  // Invitations (DDD 8-phase slice — wins over dev's PR6 implementation).
+  // Backed by accept_invitation + get_invitation_by_token SECURITY DEFINER
+  // RPCs; SQLSTATEs P0001–P0006 discriminate the four reason codes.
+  IAcceptInvitationUseCase: Symbol("IAcceptInvitationUseCase"),
   ICreateInvitationUseCase: Symbol("ICreateInvitationUseCase"),
   IResendInvitationUseCase: Symbol("IResendInvitationUseCase"),
   IRevokeInvitationUseCase: Symbol("IRevokeInvitationUseCase"),
-  IAcceptInvitationUseCase: Symbol("IAcceptInvitationUseCase"),
+
+  // Stripe / billing / onboarding (from dev)
+  ICreateOrganizationFromOnboardingUseCase: Symbol("ICreateOrganizationFromOnboardingUseCase"),
+  ICreateCheckoutSessionUseCase: Symbol("ICreateCheckoutSessionUseCase"),
+  ICreateBillingPortalSessionUseCase: Symbol("ICreateBillingPortalSessionUseCase"),
+
+  // Seat management (from dev — dev's invite use-cases overlap DDD's; only the
+  // non-overlapping pieces survive, gated by DDD's accept/create/revoke/resend).
+  IDeactivateMemberUseCase: Symbol("IDeactivateMemberUseCase"),
+  IUpdateSubscriptionSeatCountUseCase: Symbol("IUpdateSubscriptionSeatCountUseCase"),
 } as const

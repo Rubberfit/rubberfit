@@ -67,6 +67,11 @@ declare module "clipper-lib" {
     static MinkowskiSum(pattern: Path, path: Path, pathIsClosed: boolean): Paths
     static CleanPolygon(path: Path, distance?: number): Path
     static CleanPolygons(paths: Paths, distance?: number): Paths
+    static SimplifyPolygon(poly: Path, fillType?: number): Paths
+    static SimplifyPolygons(polys: Paths, fillType?: number): Paths
+    static Orientation(path: Path): boolean
+    static ReversePath(path: Path): void
+    static ReversePaths(paths: Paths): void
     static Area(path: Path): number
     static ClosedPathsFromPolyTree(polytree: PolyTree): Paths
   }

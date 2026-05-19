@@ -31,12 +31,42 @@ function templatePolygonToSheet(
   width: number,
   height: number
 ): Array<{ x: number; y: number }> | undefined {
-  if (!template.polygon || template.polygon.length < 3) return undefined
+  if (!template.polygon || template.polygon.outer.length < 3) return undefined
+  return localPointsToSheet(template.polygon.outer, placement, width, height)
+}
+
+/**
+ * Same transform as `templatePolygonToSheet`, applied to every inner
+ * hole loop. Returns `undefined` when the template has no holes so
+ * `PlacedPart.holes` stays absent (hole-blind consumers ignore it).
+ */
+function templateHolesToSheet(
+  template: PartTemplate,
+  placement: ManualPlacement,
+  width: number,
+  height: number
+): Array<Array<{ x: number; y: number }>> | undefined {
+  const templateHoles = template.polygon?.holes
+  if (!templateHoles || templateHoles.length === 0) return undefined
+  const holes: Array<Array<{ x: number; y: number }>> = []
+  for (const ring of templateHoles) {
+    if (ring.length < 3) continue
+    holes.push(localPointsToSheet(ring, placement, width, height))
+  }
+  return holes.length > 0 ? holes : undefined
+}
+
+function localPointsToSheet(
+  points: ReadonlyArray<{ x: number; y: number }>,
+  placement: ManualPlacement,
+  width: number,
+  height: number
+): Array<{ x: number; y: number }> {
   const cx = placement.x + width / 2
   const cy = placement.y + height / 2
   const cos = Math.cos(placement.rotationRad)
   const sin = Math.sin(placement.rotationRad)
-  return template.polygon.map((p) => {
+  return points.map((p) => {
     const dx = p.x - width / 2
     const dy = p.y - height / 2
     return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos }
@@ -84,7 +114,12 @@ function canReusePart(
     prev.bottomWidth === template.bottomWidth &&
     prev.innerRadius === template.innerRadius &&
     prev.outerRadius === template.outerRadius &&
-    prev.arcDegrees === template.arcDegrees
+    prev.arcDegrees === template.arcDegrees &&
+    // Hole-count signal: add/remove invalidates the memo. In-place
+    // hole edits violate React's immutable-update convention and fall
+    // outside the same identity contract polygon-vertex edits already
+    // sit under (see method docstring).
+    (prev.holes?.length ?? 0) === (template.polygon?.holes?.length ?? 0)
   )
 }
 
@@ -116,6 +151,7 @@ function buildPlacedPart(
     outerRadius: template.outerRadius,
     arcDegrees: template.arcDegrees,
     polygon: templatePolygonToSheet(template, placement, width, height),
+    holes: templateHolesToSheet(template, placement, width, height),
   }
 }
 

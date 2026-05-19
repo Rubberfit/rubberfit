@@ -78,7 +78,8 @@ export const STOCK_PRESETS = [
   return leftShortest - rightShortest
 })
 
-import { formatInches } from "./nesting-layout-utils"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import { formatDimensionsInches } from "@/src/application/preferences/user-unit-display"
 
 interface StockPreviewConfiguratorProps {
   activeStockPreset?: string
@@ -99,6 +100,7 @@ export function StockPreviewConfigurator({
   onStockChange,
   materialTypes = [],
 }: StockPreviewConfiguratorProps) {
+  const organizationPreferences = useOrganizationPreferences()
   const [activeDraftField, setActiveDraftField] = useState<StockField | null>(null)
   const [drafts, setDrafts] = useState(() => ({
     width: formatDraftValue(stock.width),
@@ -356,7 +358,8 @@ export function StockPreviewConfigurator({
           {stock.material ? `${stock.material}` : "No material selected"}
           {stock.costPerSqft != null ? ` · $${stock.costPerSqft.toFixed(2)}/sq ft` : ""}
           {" · "}
-          {formatInches(stock.width)}" × {formatInches(stock.length)}" preview sheet
+          {formatDimensionsInches([stock.width, stock.length], organizationPreferences)} preview
+          sheet
         </div>
       </CardContent>
     </Card>

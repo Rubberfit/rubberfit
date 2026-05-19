@@ -1,7 +1,17 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 
 import { LoginForm } from "../_components/login-form"
 import { GoogleButton } from "../_components/social-auth/google-button"
+
+export const metadata: Metadata = {
+  title: "Sign in to RubberFit",
+  description: "Sign in to the RubberFit manufacturing operations dashboard.",
+  robots: {
+    index: false,
+    follow: false,
+  },
+}
 
 interface LoginPageProps {
   searchParams?:
@@ -52,6 +62,16 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         </div>
 
         <LoginForm redirectTo={redirectTo} />
+
+        <p className="mt-6 text-center text-[14px] text-[var(--color-graphite)]/60">
+          New here?{" "}
+          <a
+            href="https://get.rubberfit.app/pricing"
+            className="auth-link hover:text-[var(--color-signal)]"
+          >
+            Start your trial →
+          </a>
+        </p>
       </div>
     </>
   )

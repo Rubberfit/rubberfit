@@ -26,6 +26,11 @@ import type { ReorderRule } from "@/src/entities/reorder-rule"
 import type { MaterialType } from "@/src/entities/material-type"
 import type { Supplier } from "@/src/entities/supplier"
 import type { ReorderSuggestionOutput } from "@/src/application/use-cases/reorder/generate-reorder-suggestions.use-case"
+import {
+  DEFAULT_ORGANIZATION_PREFERENCES,
+  type OrganizationPreferences,
+} from "@/src/infrastructure/models/organization-preferences"
+import { SQFT_PER_SQM } from "@/src/application/use-cases/purchase-orders/po-input-conversion"
 import { TOKENS } from "@/di/tokens"
 
 const requireAuthenticatedUserMock = vi.hoisted(() => vi.fn())
@@ -33,9 +38,19 @@ vi.mock("@/app/server/auth/require-authenticated-user", () => ({
   requireAuthenticatedUser: requireAuthenticatedUserMock,
 }))
 
+const requireActiveSubscriptionMock = vi.hoisted(() => vi.fn())
+vi.mock("@/app/server/auth/require-active-subscription", () => ({
+  requireActiveSubscription: requireActiveSubscriptionMock,
+}))
+
 const requirePermissionMock = vi.hoisted(() => vi.fn())
 vi.mock("@/app/server/auth/require-permission", () => ({
   requirePermission: requirePermissionMock,
+}))
+
+const requireActiveTenantMock = vi.hoisted(() => vi.fn())
+vi.mock("@/app/server/auth/require-active-tenant", () => ({
+  requireActiveTenant: requireActiveTenantMock,
 }))
 
 const resolveUseCaseMock = vi.hoisted(() => vi.fn())
@@ -52,9 +67,16 @@ vi.mock("@/app/server/database/register-factory", () => ({
 
 const reorderServiceMock = vi.hoisted(() => ({
   getActiveRules: vi.fn(),
+  createRule: vi.fn(),
 }))
 const calcServiceMock = vi.hoisted(() => ({
   calculateCurrentStock: vi.fn(),
+}))
+
+// PR 2f: `createReorderRule` action seeds `reorder_point` from
+// `organization_preferences.lowStockThresholdSqft` when omitted.
+const orgPrefsServiceMock = vi.hoisted(() => ({
+  getForOrganization: vi.fn<(id: string) => Promise<OrganizationPreferences>>(),
 }))
 const poServiceMock = vi.hoisted(() => ({
   getByStatuses: vi.fn(),
@@ -84,13 +106,17 @@ vi.mock("next/cache", () => ({
   revalidatePath: revalidatePathMock,
 }))
 
+const TENANT_ID = "00000000-0000-4000-8000-000000000001"
+
 const ACTOR: ActionActor = {
   id: "00000000-0000-4000-8000-000000000099",
   email: "alice@example.com",
   roles: ["manager"],
   isSuperAdmin: false,
-  activeTenantId: null,
+  activeTenantId: TENANT_ID,
 }
+
+const ORG_ID = "00000000-0000-4000-8000-0000000000aa"
 
 // Stable test UUIDs.
 const MATERIAL_TYPE_ID = "00000000-0000-4000-8000-000000000010"
@@ -98,7 +124,6 @@ const MATERIAL_TYPE_ID_B = "00000000-0000-4000-8000-000000000020"
 const SUPPLIER_ID = "00000000-0000-4000-8000-000000000011"
 const RULE_ID = "00000000-0000-4000-8000-000000000012"
 const PO_ID = "00000000-0000-4000-8000-000000000013"
-const TENANT_ID = "00000000-0000-4000-8000-000000000001"
 
 // Plain-object stand-ins shaped to match entity getter access. The
 // action reads `.materialTypeId.value`, `.supplierId?.value`,
@@ -189,20 +214,39 @@ function setupServiceResolver() {
     if (token === TOKENS.IReorderService) return reorderServiceMock
     if (token === TOKENS.IReorderCalculationsService) return calcServiceMock
     if (token === TOKENS.IPurchaseOrderService) return poServiceMock
+    if (token === TOKENS.IOrganizationPreferencesService) return orgPrefsServiceMock
     throw new Error(`Unexpected resolveService token: ${String(token)}`)
   })
+}
+
+function buildOrgPrefs(
+  overrides: Partial<OrganizationPreferences> = {}
+): OrganizationPreferences {
+  return {
+    organizationId: ORG_ID,
+    createdAt: "2026-05-01T00:00:00.000Z",
+    updatedAt: "2026-05-01T00:00:00.000Z",
+    ...DEFAULT_ORGANIZATION_PREFERENCES,
+    ...overrides,
+  }
 }
 
 describe("app/actions/reorder", () => {
   beforeEach(() => {
     requireAuthenticatedUserMock.mockResolvedValue(ACTOR)
+    requireActiveSubscriptionMock.mockResolvedValue({
+      kind: "allowed",
+      organizationId: ORG_ID,
+    })
     requirePermissionMock.mockReturnValue(undefined)
+    requireActiveTenantMock.mockReturnValue(TENANT_ID)
     setupServiceResolver()
     reorderServiceMock.getActiveRules.mockResolvedValue([buildRule()])
     calcServiceMock.calculateCurrentStock.mockResolvedValue(10)
     materialTypeServiceMock.getByIds.mockResolvedValue([buildMaterial()])
     supplierServiceMock.getActiveSuppliers.mockResolvedValue([buildSupplier()])
     poServiceMock.getByStatuses.mockResolvedValue([])
+    orgPrefsServiceMock.getForOrganization.mockResolvedValue(buildOrgPrefs())
   })
 
   afterEach(() => {
@@ -457,5 +501,120 @@ describe("app/actions/reorder", () => {
     const { getCurrentStockByMaterials } = await import("@/app/actions/reorder")
     await getCurrentStockByMaterials([MATERIAL_TYPE_ID, MATERIAL_TYPE_ID, MATERIAL_TYPE_ID])
     expect(calcServiceMock.calculateCurrentStock).toHaveBeenCalledTimes(1)
+  })
+
+  // ── createReorderRule ─────────────────────────────────────────────
+
+  const BASE_RULE_INPUT = {
+    material_type_id: MATERIAL_TYPE_ID,
+    reorder_quantity: 100,
+    lead_time_days: 7,
+  }
+
+  it("createReorderRule preserves an explicit reorder_point (sqft→sqm at boundary)", async () => {
+    const { createReorderRule } = await import("@/app/actions/reorder")
+
+    await createReorderRule({ ...BASE_RULE_INPUT, reorder_point: 42 })
+
+    expect(orgPrefsServiceMock.getForOrganization).not.toHaveBeenCalled()
+    expect(reorderServiceMock.createRule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        materialTypeId: expect.objectContaining({ value: MATERIAL_TYPE_ID }),
+        reorderPointSqm: 42 / SQFT_PER_SQM,
+        reorderQuantitySqm: 100 / SQFT_PER_SQM,
+        leadTimeDays: 7,
+        actor: expect.objectContaining({ value: ACTOR.id }),
+      })
+    )
+    expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/inventory/reorder")
+  })
+
+  it("createReorderRule seeds reorder_point from org prefs (sqft) when omitted, converted to sqm at service", async () => {
+    orgPrefsServiceMock.getForOrganization.mockResolvedValue(
+      buildOrgPrefs({ lowStockThresholdSqft: 275 })
+    )
+    const { createReorderRule } = await import("@/app/actions/reorder")
+
+    await createReorderRule(BASE_RULE_INPUT)
+
+    expect(orgPrefsServiceMock.getForOrganization).toHaveBeenCalledWith(ORG_ID)
+    expect(reorderServiceMock.createRule).toHaveBeenCalledWith(
+      expect.objectContaining({ reorderPointSqm: 275 / SQFT_PER_SQM })
+    )
+  })
+
+  it("createReorderRule preserves an explicit reorder_point: 0 (no-alert override)", async () => {
+    const { createReorderRule } = await import("@/app/actions/reorder")
+
+    await createReorderRule({ ...BASE_RULE_INPUT, reorder_point: 0 })
+
+    expect(orgPrefsServiceMock.getForOrganization).not.toHaveBeenCalled()
+    expect(reorderServiceMock.createRule).toHaveBeenCalledWith(
+      expect.objectContaining({ reorderPointSqm: 0 })
+    )
+  })
+
+  it("createReorderRule falls back to the model default (sqm) when org-prefs lookup fails", async () => {
+    orgPrefsServiceMock.getForOrganization.mockRejectedValue(new Error("rls denied"))
+    const { createReorderRule } = await import("@/app/actions/reorder")
+
+    await createReorderRule(BASE_RULE_INPUT)
+
+    expect(reorderServiceMock.createRule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reorderPointSqm: DEFAULT_ORGANIZATION_PREFERENCES.lowStockThresholdSqft / SQFT_PER_SQM,
+      })
+    )
+  })
+
+  it("createReorderRule requires manageRolls permission", async () => {
+    requirePermissionMock.mockImplementation(() => {
+      throw new Error("forbidden")
+    })
+    const { createReorderRule } = await import("@/app/actions/reorder")
+
+    await expect(createReorderRule(BASE_RULE_INPUT)).rejects.toThrow("forbidden")
+    expect(requirePermissionMock).toHaveBeenCalledWith(ACTOR, "manageRolls")
+    expect(reorderServiceMock.createRule).not.toHaveBeenCalled()
+  })
+
+  it("createReorderRule rejects max_stock_level less than reorder_point", async () => {
+    const { createReorderRule } = await import("@/app/actions/reorder")
+
+    await expect(
+      createReorderRule({ ...BASE_RULE_INPUT, reorder_point: 500, max_stock_level: 100 })
+    ).rejects.toThrow()
+    expect(reorderServiceMock.createRule).not.toHaveBeenCalled()
+  })
+
+  it("createReorderRule rejects max_stock_level lower than the seeded reorder_point", async () => {
+    // Caller omits reorder_point (seed = 275 sqft) but caps max_stock_level
+    // at 100 sqft. The Zod refinement can't see the seeded value, so the
+    // action's post-seed guard must catch the violation — and must
+    // throw a ZodError on the `max_stock_level` path so client forms
+    // map both rejection paths uniformly. Sigilix PR #269 catch. Note
+    // the guard compares in sqft (pre-conversion) so the user-facing
+    // error message stays in input units.
+    orgPrefsServiceMock.getForOrganization.mockResolvedValue(
+      buildOrgPrefs({ lowStockThresholdSqft: 275 })
+    )
+    const { z } = await import("zod")
+    const { createReorderRule } = await import("@/app/actions/reorder")
+
+    const err = await createReorderRule({
+      ...BASE_RULE_INPUT,
+      max_stock_level: 100,
+    }).catch((e: unknown) => e)
+
+    expect(err).toBeInstanceOf(z.ZodError)
+    if (err instanceof z.ZodError) {
+      expect(err.issues).toEqual([
+        expect.objectContaining({
+          path: ["max_stock_level"],
+          message: expect.stringMatching(/max stock level/i),
+        }),
+      ])
+    }
+    expect(reorderServiceMock.createRule).not.toHaveBeenCalled()
   })
 })

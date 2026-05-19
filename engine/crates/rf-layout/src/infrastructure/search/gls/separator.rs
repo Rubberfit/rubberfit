@@ -515,6 +515,7 @@ mod tests {
     use crate::infrastructure::search::gls::assertions::tracker_matches_layout;
     use jagua_rs::entities::Instance as InstanceTrait;
     use rf_geom::domain::Point2D;
+    use rf_geom::PolygonWithHoles;
 
     const SEED: u64 = 42;
 
@@ -522,12 +523,15 @@ mod tests {
         Part {
             shape_id: id.into(),
             quantity: 1,
-            polygon: Some(vec![
-                Point2D::new(0.0, 0.0),
-                Point2D::new(side, 0.0),
-                Point2D::new(side, side),
-                Point2D::new(0.0, side),
-            ]),
+            polygon: Some(
+                PolygonWithHoles::from_outer_points(vec![
+                    Point2D::new(0.0, 0.0),
+                    Point2D::new(side, 0.0),
+                    Point2D::new(side, side),
+                    Point2D::new(0.0, side),
+                ])
+                .expect("square polygon"),
+            ),
             shape_spec: None,
             allow_rotation: false,
             grain_axis: None,

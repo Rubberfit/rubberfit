@@ -1,7 +1,6 @@
 "use client"
 
 import { memo, useMemo } from "react"
-import { format } from "date-fns"
 import {
   Building2,
   Calendar,
@@ -17,6 +16,8 @@ import {
   XCircle,
 } from "lucide-react"
 
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import { useUserPreferences } from "@/app/dashboard/_components/user-preferences-provider"
 import {
   type PurchaseOrder,
   type PurchaseOrderWithDetails,
@@ -31,6 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@/app/components/ui/dropdown-menu"
 import type { ColumnDef } from "@/app/components/patterns/data-table"
+import { formatUserDate } from "@/src/application/preferences/user-date-format"
 
 import { handleDownloadPDF } from "./po-pdf-export"
 import { getStatusBadge } from "./po-status-badge"
@@ -62,6 +64,13 @@ export function usePoColumns({
   onReceive,
   onCancel,
 }: UsePoColumnsArgs): ColumnDef<PurchaseOrderWithDetails>[] {
+  // Two-source read (per the 2026-05-14 operator-seeds-prints
+  // ruling): the viewer's per-user prefs drive on-screen cell dates,
+  // and the workspace's org-level prefs drive the row PDF action
+  // (Download PDF in the dropdown). Symmetric naming so a future
+  // maintainer can't conflate the two.
+  const userPreferences = useUserPreferences()
+  const organizationPreferences = useOrganizationPreferences()
   return useMemo<ColumnDef<PurchaseOrderWithDetails>[]>(
     () => [
       {
@@ -94,9 +103,12 @@ export function usePoColumns({
         header: "Order Date",
         cell: (po) => (
           <span className="text-sm text-muted-foreground">
-            {po.order_date ? format(new Date(po.order_date), "MMM dd, yyyy") : "—"}
+            {formatUserDate(po.order_date, userPreferences) || "—"}
           </span>
         ),
+        // Sort uses getTime() against the raw value — keep the
+        // numeric comparison; display swap above does not change
+        // ordering semantics.
         sortFn: (po) =>
           po.order_date ? new Date(po.order_date).getTime() : Number.MIN_SAFE_INTEGER,
         defaultSort: "desc",
@@ -104,15 +116,21 @@ export function usePoColumns({
       {
         id: "delivery_date",
         header: "Delivery",
-        cell: (po) =>
-          po.requested_delivery_date ? (
+        cell: (po) => {
+          // Use the formatted output to gate the icon — a shape-valid
+          // invalid date (e.g. "2026-02-30") returns "" from the helper
+          // and should fall through to the "—" placeholder, not render
+          // an empty cell with a stray calendar glyph.
+          const formatted = formatUserDate(po.requested_delivery_date, userPreferences)
+          return formatted ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Calendar className="size-3.5" aria-hidden="true" />
-              {format(new Date(po.requested_delivery_date), "MMM dd")}
+              {formatted}
             </div>
           ) : (
             <span className="text-sm text-muted-foreground">—</span>
-          ),
+          )
+        },
         sortFn: (po) =>
           po.requested_delivery_date
             ? new Date(po.requested_delivery_date).getTime()
@@ -154,6 +172,7 @@ export function usePoColumns({
             onUpdateStatus={onUpdateStatus}
             onReceive={onReceive}
             onCancel={onCancel}
+            organizationPreferences={organizationPreferences}
           />
         ),
       },
@@ -169,6 +188,7 @@ interface PoActionsCellProps {
   onUpdateStatus: (poId: string, next: PurchaseOrder["status"]) => Promise<boolean>
   onReceive: (po: PurchaseOrderWithDetails) => void
   onCancel: (po: PurchaseOrderWithDetails) => void
+  organizationPreferences: ReturnType<typeof useOrganizationPreferences>
 }
 
 /**
@@ -236,7 +256,7 @@ function PoActionsCellInner({
   }
 
   function handleDownloadClick() {
-    handleDownloadPDF(po)
+    handleDownloadPDF(po, organizationPreferences)
   }
 
   function handleCancelClick() {

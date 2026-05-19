@@ -57,7 +57,7 @@ pub fn ffd_assign(
     // the sort key once per shape (bbox area + longest edge).
     let mut shape_bbox: HashMap<&str, (f64, f64)> = HashMap::with_capacity(items.len());
     for part in items {
-        let bbox = rf_geom::application::bbox_of(part.polygon_slice()).map_err(|source| {
+        let bbox = rf_geom::application::bbox_of(part.outer_slice()).map_err(|source| {
             PackError::InvalidPolygon {
                 shape_id: part.shape_id.clone(),
                 source,
@@ -239,17 +239,21 @@ pub(crate) fn materialize_parts(
 mod tests {
     use super::*;
     use rf_geom::domain::Point2D;
+    use rf_geom::PolygonWithHoles;
 
     fn rect_part(id: &str, qty: u32, w: f64, h: f64) -> Part {
         Part {
             shape_id: id.into(),
             quantity: qty,
-            polygon: Some(vec![
-                Point2D::new(0.0, 0.0),
-                Point2D::new(w, 0.0),
-                Point2D::new(w, h),
-                Point2D::new(0.0, h),
-            ]),
+            polygon: Some(
+                PolygonWithHoles::from_outer_points(vec![
+                    Point2D::new(0.0, 0.0),
+                    Point2D::new(w, 0.0),
+                    Point2D::new(w, h),
+                    Point2D::new(0.0, h),
+                ])
+                .expect("rect polygon"),
+            ),
             shape_spec: None,
             allow_rotation: false,
             grain_axis: None,

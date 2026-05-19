@@ -1,7 +1,5 @@
 import jsPDF from "jspdf"
-import { format } from "date-fns"
 
-import { ARC_ANCHOR_LOGO_BASE64 } from "./arc-anchor-logo"
 import { uploadCutPdfFromBrowser } from "@/src/infrastructure/services/cutPdfBrowserStorage"
 import type { SimpleCutMetrics } from "./nesting-visualizer-types"
 import type { PartTemplate } from "./PresetDimensionSelector"
@@ -9,6 +7,16 @@ import type { StockConfig } from "./stock-preview-configurator"
 import { PART_OPTIONS } from "./preset-template-data"
 import type { LayoutModel, PlacedPart, LayoutRegion } from "./layout-model"
 import { buildOffcutSummary, type OffcutSummaryRow } from "./cut-history-pdf-offcut"
+import {
+  formatAreaSqft,
+  formatDimensionsInches,
+  formatLengthInches,
+  type UnitDisplayPreferencesInput,
+} from "@/src/application/preferences/user-unit-display"
+import {
+  formatUserDateTime,
+  type UserDatePreferencesInput,
+} from "@/src/application/preferences/user-date-format"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,24 +38,43 @@ export interface CutPdfData {
   scrapPct: number
   fabScore: number
   cutDate: string
+  /**
+   * Org-level print preferences. Drives the sqft → m² conversion in
+   * the metrics table, KPI strip, offcut location/size/area columns,
+   * dimension arrows around the stock-sheet diagram, and the stock
+   * summary line. The date-format / time-zone / locale fields drive
+   * the cut-date stamp under the header divider via
+   * `formatUserDateTime`. Optional so legacy callers fall back to
+   * imperial / `MM/dd/yyyy` / `America/Chicago`; the production
+   * browser + server-recovery paths populate it.
+   */
+  organizationPreferences?: UnitDisplayPreferencesInput & UserDatePreferencesInput
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
+//
+// Phase 7 PR 3 — chrome tokens come from the shared design system at
+// `@/app/lib/pdf`. Local aliases (BRAND, GRAY_*) keep the diagram-body
+// helpers unchanged while the chrome (header, footer, KPI cards, tables)
+// adopts Kimi's spec. Page geometry stays in millimetres per founder Q3
+// — the 1204-LOC diagram body's mm coordinate system is preserved.
 
-type RGB = readonly [number, number, number]
+import {
+  CHARCOAL as GRAY_700,
+  drawRubberfitMark,
+  INK as GRAY_900,
+  type RGB,
+  RULE as GRAY_200,
+  SIGNAL as BRAND,
+  SLATE as GRAY_500,
+  SURFACE as GRAY_50,
+  WHITE,
+} from "@/app/lib/pdf"
 
 const MARGIN = 15
 const PAGE_W = 210
 const PAGE_H = 297
 const CONTENT_W = PAGE_W - MARGIN * 2
-
-const BRAND: RGB = [37, 99, 235]
-const GRAY_900: RGB = [17, 24, 39]
-const GRAY_700: RGB = [55, 65, 81]
-const GRAY_500: RGB = [107, 114, 128]
-const GRAY_200: RGB = [229, 231, 235]
-const GRAY_50: RGB = [249, 250, 251]
-const WHITE: RGB = [255, 255, 255]
 
 // Blueprint palette: a single semantic per-region scheme so the diagram reads
 // as material zones (shape vs. reusable vs. waste), not a per-spec rainbow.
@@ -87,16 +114,11 @@ const MIN_LABEL_FONT_PT = 2.5
 const MAX_LABEL_FONT_PT = 10
 const PT_TO_MM = 25.4 / 72
 
-// ── Logo Loader ──────────────────────────────────────────────────────────────
-
-let cachedLogo: string | null = null
-
-function getLogo(): string {
-  if (!cachedLogo) {
-    cachedLogo = `data:image/jpeg;base64,${ARC_ANCHOR_LOGO_BASE64}`
-  }
-  return cachedLogo
-}
+// ── Logo loader ─────────────────────────────────────────────────────────────
+// Phase 7 brand correction (2026-05-12) — the compass-rose Arc & Anchor
+// JPEG is gone. The Rubberfit mark is drawn imperatively by
+// `drawRubberfitMark` (imported from `@/app/lib/pdf`). No asset
+// round-trip, no image cache.
 
 // ── SVG Print-Color Swaps ────────────────────────────────────────────────────
 
@@ -177,44 +199,74 @@ function checkNewPage(doc: jsPDF, y: number, needed: number): number {
 
 // ── Section Renderers ────────────────────────────────────────────────────────
 
-function addHeader(doc: jsPDF, data: CutPdfData, logo: string): number {
-  let y = 15
+function addHeader(doc: jsPDF, data: CutPdfData): number {
+  // Phase 7 chrome (mm reproduction of the shared internal-canvas
+  // chrome). Brand correction (2026-05-12): dropped the Arc & Anchor
+  // compass-rose `addImage` call and the "ARC & ANCHOR / RUBBERFIT"
+  // wordmark. The top-left now carries the geometric Rubberfit mark
+  // drawn by `drawRubberfitMark`; the top-right carries a "RUBBERFIT"
+  // wordmark + signal-orange inspection-stamp underline.
+  const topY = MARGIN
+  drawRubberfitMark(doc, MARGIN, topY, 7)
 
-  doc.addImage(logo, "JPEG", MARGIN, y - 3, 10, 10)
-  doc.setFontSize(14)
-  doc.setTextColor(...BRAND)
+  // Right-aligned wordmark — caption ink, no brand-blue.
+  doc.setFontSize(7)
   doc.setFont("helvetica", "bold")
-  doc.text("Rubberfit Pro", MARGIN + 13, y + 3)
-  y += 13
-
-  doc.setFontSize(20)
   doc.setTextColor(...GRAY_900)
-  doc.text("Cut Report", MARGIN, y)
-  y += 8
+  doc.text("RUBBERFIT", PAGE_W - MARGIN, topY + 2, { align: "right" })
 
-  doc.setFontSize(10)
-  doc.setTextColor(...GRAY_500)
-  doc.setFont("helvetica", "normal")
-  doc.text(format(new Date(data.cutDate), "MMMM dd, yyyy  HH:mm"), MARGIN, y)
-  y += 4
-
+  // Signal-orange inspection underline beneath the wordmark.
   doc.setDrawColor(...BRAND)
-  doc.setLineWidth(0.6)
-  doc.line(MARGIN, y, MARGIN + CONTENT_W, y)
-  y += 5
+  doc.setLineWidth(0.18)
+  doc.line(PAGE_W - MARGIN - 8, topY + 3, PAGE_W - MARGIN, topY + 3)
 
-  return y
+  doc.setFontSize(13)
+  doc.setTextColor(...GRAY_900)
+  doc.text("CUT REPORT", PAGE_W - MARGIN, topY + 6.5, { align: "right" })
+
+  // Mono record id under the title.
+  doc.setFont("courier", "normal")
+  doc.setFontSize(8)
+  doc.setTextColor(...GRAY_500)
+  doc.text(`#${data.cutId}`, PAGE_W - MARGIN, topY + 10.5, { align: "right" })
+
+  // Divider rule below the chrome content.
+  const ruleY = topY + 13
+  doc.setDrawColor(...GRAY_200)
+  doc.setLineWidth(0.18)
+  doc.line(MARGIN, ruleY, PAGE_W - MARGIN, ruleY)
+
+  // Date stamp beneath the divider.
+  doc.setFont("helvetica", "normal")
+  doc.setFontSize(8)
+  doc.setTextColor(...GRAY_500)
+  const dateY = ruleY + 4
+  // `cutDate` is stored UTC; the helper renders date + localized
+  // time + short zone in the operator's `dateFormat` / `timeZone` /
+  // `locale`. The earlier `MMMM dd, yyyy  HH:mm zzz` literal hard-
+  // pinned the date format and depended on the runtime locale —
+  // formatUserDateTime closes both.
+  doc.text(formatUserDateTime(data.cutDate, data.organizationPreferences) || "—", MARGIN, dateY)
+
+  return dateY + 6
 }
 
 function addSummaryCards(doc: jsPDF, data: CutPdfData, y: number): number {
   y = checkNewPage(doc, y, 32)
+  // Phase 7 KPI card: Surface fill + 0.7mm brand-blue top border (no
+  // side/bottom stroke, no rounded corners). Label top-left in caption
+  // slate; value below in H2 ink. Matches Kimi's Internal-canvas spec.
   const cardW = (CONTENT_W - 4 * 3) / 5
   const cardH = 20
   const gap = 3
+  const topBorder = 0.7 // mm — visual analog of Kimi's 2pt brand-blue stripe
 
   const cards = [
     { label: "Cut Pieces", value: `${data.cutPieces}` },
-    { label: "Material Used", value: `${data.materialUsedSqFt.toFixed(1)} sqft` },
+    {
+      label: "Material Used",
+      value: formatAreaSqft(data.materialUsedSqFt, data.organizationPreferences, { precision: 1 }),
+    },
     { label: "Reusable Offcut", value: `${data.reusableOffcutPct.toFixed(1)}%` },
     { label: "Waste", value: `${data.scrapPct.toFixed(1)}%` },
     { label: "Fab Score", value: `${Math.round(data.fabScore * 100)}/100` },
@@ -222,17 +274,21 @@ function addSummaryCards(doc: jsPDF, data: CutPdfData, y: number): number {
 
   for (let i = 0; i < cards.length; i++) {
     const x = MARGIN + i * (cardW + gap)
+    // Surface body, no border (rectangles per Kimi spec).
     doc.setFillColor(...GRAY_50)
-    doc.setDrawColor(...GRAY_200)
-    doc.roundedRect(x, y, cardW, cardH, 2, 2, "FD")
+    doc.rect(x, y, cardW, cardH, "F")
+    // Brand-blue top accent stripe.
+    doc.setFillColor(...BRAND)
+    doc.rect(x, y, cardW, topBorder, "F")
+
     doc.setFontSize(7)
     doc.setTextColor(...GRAY_500)
-    doc.setFont("helvetica", "normal")
-    doc.text(cards[i].label.toUpperCase(), x + cardW / 2, y + 7, { align: "center" })
+    doc.setFont("helvetica", "bold")
+    doc.text(cards[i].label.toUpperCase(), x + 3, y + 6)
     doc.setFontSize(13)
     doc.setTextColor(...GRAY_900)
     doc.setFont("helvetica", "bold")
-    doc.text(cards[i].value, x + cardW / 2, y + 15, { align: "center" })
+    doc.text(cards[i].value, x + 3, y + 15)
   }
 
   y += cardH + 6
@@ -240,8 +296,13 @@ function addSummaryCards(doc: jsPDF, data: CutPdfData, y: number): number {
   doc.setTextColor(...GRAY_700)
   doc.setFont("helvetica", "normal")
   const rollLabel = data.rollCount > 1 ? `${data.rollCount} rolls` : "1 roll"
+  const stockDims = formatDimensionsInches(
+    [data.stockWidth, data.stockLength, data.stockThickness],
+    data.organizationPreferences,
+    { precision: 3 }
+  )
   doc.text(
-    `${data.profileTitle}  |  Stock: ${data.stockWidth}" \u00D7 ${data.stockLength}" \u00D7 ${data.stockThickness}"  |  ${data.materialName}  |  ${rollLabel}`,
+    `${data.profileTitle}  |  Stock: ${stockDims}  |  ${data.materialName}  |  ${rollLabel}`,
     MARGIN,
     y
   )
@@ -262,23 +323,27 @@ function addCutLegend(doc: jsPDF, tagMap: Map<string, string>, y: number): numbe
   const needed = 12 + rows * rowH
   y = checkNewPage(doc, y, needed)
 
+  // Phase 7 section divider — 0.7mm brand-blue rule + H2 title.
+  doc.setFillColor(...BRAND)
+  doc.rect(MARGIN, y, CONTENT_W, 0.7, "F")
   doc.setFontSize(11)
   doc.setTextColor(...GRAY_900)
   doc.setFont("helvetica", "bold")
-  doc.text("Cut Legend", MARGIN, y)
-  y += 6
+  doc.text("Cut Legend", MARGIN, y + 5)
+  y += 11
 
-  // Column headers
-  doc.setFillColor(...GRAY_50)
-  doc.rect(MARGIN, y - 3.5, CONTENT_W, 5, "F")
+  // Column headers — caption + brand-blue underline (not solid fill).
   doc.setFontSize(7)
-  doc.setTextColor(...GRAY_500)
-  doc.setFont("helvetica", "normal")
+  doc.setTextColor(...GRAY_900)
+  doc.setFont("helvetica", "bold")
   for (let c = 0; c < cols; c++) {
     const cx = MARGIN + c * colW
     doc.text("TAG", cx + 2, y)
     doc.text("DIMENSIONS", cx + 12, y)
   }
+  doc.setDrawColor(...BRAND)
+  doc.setLineWidth(0.35)
+  doc.line(MARGIN, y + 1.5, MARGIN + CONTENT_W, y + 1.5)
   y += 4
 
   // Entries in column-major order
@@ -321,7 +386,8 @@ function renderLayoutToDoc(
   boxY: number,
   boxW: number,
   boxH: number,
-  offcutRows: ReadonlyArray<OffcutSummaryRow>
+  offcutRows: ReadonlyArray<OffcutSummaryRow>,
+  unitPreferences?: UnitDisplayPreferencesInput
 ): void {
   const sheetW = layout.sheetWidth
   const sheetL = layout.sheetLength
@@ -405,7 +471,7 @@ function renderLayoutToDoc(
   }
 
   // Dimension annotations on the right (width) + bottom (length) edges.
-  drawDimensionArrows(doc, ox, oy, drawW, drawH, sheetW, sheetL)
+  drawDimensionArrows(doc, ox, oy, drawW, drawH, sheetW, sheetL, unitPreferences)
 }
 
 interface RegionStyle {
@@ -590,16 +656,43 @@ function drawHatchedPart(
     doc.setLineWidth(0.25)
     doc.ellipse(cx, cy, r, r, "S")
   } else if (part.polygon && part.polygon.length >= 3) {
-    doc.setFillColor(...style.fill)
-    drawPolygon(doc, part.polygon, ox, oy, scale, "F")
-    doc.saveGraphicsState()
-    polygonAsClipPath(doc, part.polygon, ox, oy, scale)
-    const bbox = polygonBoundingBox(part.polygon, ox, oy, scale)
-    drawHatchInBounds(doc, bbox.x, bbox.y, bbox.w, bbox.h, style.hatch, style.hatchSpacingMm)
-    doc.restoreGraphicsState()
-    doc.setDrawColor(...style.stroke)
-    doc.setLineWidth(0.25)
-    drawPolygon(doc, part.polygon, ox, oy, scale, "S")
+    const holes = (part.holes ?? []).filter((h) => h.length >= 3)
+    if (holes.length > 0) {
+      // Compound-path render with the even-odd fill rule so holes
+      // become true voids (no hatch / fill bleed through them). PDF
+      // operators: build outer + each hole as subpaths of a single
+      // path, then terminate with f*/W* for even-odd semantics.
+      doc.setFillColor(...style.fill)
+      buildCompoundPolygonPath(doc, part.polygon, holes, ox, oy, scale)
+      doc.fillEvenOdd()
+
+      doc.saveGraphicsState()
+      buildCompoundPolygonPath(doc, part.polygon, holes, ox, oy, scale)
+      doc.clipEvenOdd()
+      doc.discardPath()
+      const bbox = polygonBoundingBox(part.polygon, ox, oy, scale)
+      drawHatchInBounds(doc, bbox.x, bbox.y, bbox.w, bbox.h, style.hatch, style.hatchSpacingMm)
+      doc.restoreGraphicsState()
+
+      doc.setDrawColor(...style.stroke)
+      doc.setLineWidth(0.25)
+      // Stroke the compound path once — outer ring + every hole
+      // boundary in a single PDF stroke operator. CNC operators see
+      // the full cut profile (outer + interior cuts) on the PDF.
+      buildCompoundPolygonPath(doc, part.polygon, holes, ox, oy, scale)
+      doc.stroke()
+    } else {
+      doc.setFillColor(...style.fill)
+      drawPolygon(doc, part.polygon, ox, oy, scale, "F")
+      doc.saveGraphicsState()
+      polygonAsClipPath(doc, part.polygon, ox, oy, scale)
+      const bbox = polygonBoundingBox(part.polygon, ox, oy, scale)
+      drawHatchInBounds(doc, bbox.x, bbox.y, bbox.w, bbox.h, style.hatch, style.hatchSpacingMm)
+      doc.restoreGraphicsState()
+      doc.setDrawColor(...style.stroke)
+      doc.setLineWidth(0.25)
+      drawPolygon(doc, part.polygon, ox, oy, scale, "S")
+    }
   } else {
     drawHatchedRect(doc, px, py, pw, ph, style, { stroke: true })
   }
@@ -647,16 +740,56 @@ function polygonAsClipPath(
   scale: number
 ): void {
   if (polygon.length < 3) return
+  addPolygonSubpath(doc, polygon, ox, oy, scale)
+  doc.clip().discardPath()
+}
+
+/**
+ * Trace a polygon as an open PDF subpath (no fill/stroke/clip
+ * terminator). Multiple calls compose into a single compound path —
+ * `doc.lines(..., null, true)` emits PDF moveto/lineto/closepath but
+ * defers the path operator until the caller invokes `fill`, `stroke`,
+ * `clip`, etc. Used by `buildCompoundPolygonPath` to assemble outer +
+ * holes for even-odd fill/clip on parts with cutouts.
+ */
+function addPolygonSubpath(
+  doc: jsPDF,
+  polygon: ReadonlyArray<{ x: number; y: number }>,
+  ox: number,
+  oy: number,
+  scale: number
+): void {
   const first = polygon[0]
   const segments = polygon.slice(1).map((pt, i) => {
     const prev = polygon[i]
     return [(pt.x - prev.x) * scale, (pt.y - prev.y) * scale] as [number, number]
   })
-  // Trace the polygon as a path with `style=null` so jsPDF doesn't auto-stroke
-  // it before the clip (the default `undefined` style emits an `S` operator
-  // which produces visible strokes around every clipped region).
+  // `null` style: jsPDF emits moveto/lineto/closepath and stops — no
+  // auto-stroke, no auto-fill, no end-path. Path stays open for the
+  // caller's terminator (fill / stroke / clip).
   doc.lines(segments, ox + first.x * scale, oy + first.y * scale, [1, 1], null, true)
-  doc.clip().discardPath()
+}
+
+/**
+ * Build a compound PDF path: outer ring + N inner hole loops as
+ * separate subpaths under one path object. Caller terminates with
+ * `fillEvenOdd()` / `clipEvenOdd().discardPath()` / `stroke()` to get
+ * the even-odd semantics that produce true transparent cutouts.
+ * Hole rings with < 3 vertices are skipped.
+ */
+function buildCompoundPolygonPath(
+  doc: jsPDF,
+  outer: ReadonlyArray<{ x: number; y: number }>,
+  holes: ReadonlyArray<ReadonlyArray<{ x: number; y: number }>>,
+  ox: number,
+  oy: number,
+  scale: number
+): void {
+  if (outer.length < 3) return
+  addPolygonSubpath(doc, outer, ox, oy, scale)
+  for (const hole of holes) {
+    if (hole.length >= 3) addPolygonSubpath(doc, hole, ox, oy, scale)
+  }
 }
 
 /**
@@ -687,12 +820,12 @@ function getFittingLabelFontPt(
   return fontPt >= MIN_LABEL_FONT_PT ? fontPt : null
 }
 
-function formatInch(value: number): string {
-  // Round to the nearest 1/16" then drop trailing zeros: 12.0 → "12"",
-  // 7.5 → "7.5"", 12.0625 → "12.0625"".
-  const stepped = Math.round(value * 16) / 16
-  const text = Number.isInteger(stepped) ? `${stepped}` : `${stepped.toFixed(4).replace(/0+$/, "")}`
-  return `${text}"`
+function formatInch(value: number, unitPreferences?: UnitDisplayPreferencesInput): string {
+  // Snap to nearest 1/16" then route through formatLengthInches so the
+  // imperial render (`12.0625"`) and the metric render (`30.64 cm`)
+  // are derived from the same snapped value — keeps the PDF arrow
+  // labels visually aligned with what the operator measured.
+  return formatLengthInches(value, unitPreferences, { snapInchesTo: 1 / 16 })
 }
 
 function drawDimensionArrows(
@@ -702,7 +835,8 @@ function drawDimensionArrows(
   drawW: number,
   drawH: number,
   sheetWidthIn: number,
-  sheetLengthIn: number
+  sheetLengthIn: number,
+  unitPreferences?: UnitDisplayPreferencesInput
 ): void {
   doc.setDrawColor(...SHEET_STROKE_RGB)
   doc.setLineWidth(0.25)
@@ -720,7 +854,11 @@ function drawDimensionArrows(
   doc.setTextColor(...LABEL_TEXT_RGB)
   // Sideways label sits to the right of the arrow. Keep horizontal so it
   // reads at default PDF orientation; jsPDF's rotated text is fragile.
-  doc.text(`${formatInch(sheetWidthIn)} width`, widthArrowX + 2, oy + drawH / 2 + 2)
+  doc.text(
+    `${formatInch(sheetWidthIn, unitPreferences)} width`,
+    widthArrowX + 2,
+    oy + drawH / 2 + 2
+  )
 
   // Length arrow — horizontal, sits in the bottom gutter, spans the panel width.
   const lengthArrowY = oy + drawH + 4
@@ -729,9 +867,14 @@ function drawDimensionArrows(
   doc.line(lengthArrowX1, lengthArrowY, lengthArrowX2, lengthArrowY)
   drawArrowhead(doc, lengthArrowX1, lengthArrowY, "left")
   drawArrowhead(doc, lengthArrowX2, lengthArrowY, "right")
-  doc.text(`${formatInch(sheetLengthIn)} length`, ox + drawW / 2, lengthArrowY + 5, {
-    align: "center",
-  })
+  doc.text(
+    `${formatInch(sheetLengthIn, unitPreferences)} length`,
+    ox + drawW / 2,
+    lengthArrowY + 5,
+    {
+      align: "center",
+    }
+  )
 }
 
 function drawArrowhead(
@@ -792,58 +935,153 @@ function drawPolygon(
   doc.lines(segments, ox + first.x * scale, oy + first.y * scale, [1, 1], style, true)
 }
 
+/**
+ * Per Kimi K2.6 verdict (2026-05-13) on the clipped-roll bug: when the
+ * sheet's longer:shorter aspect exceeds 1.3, each roll diagram lands on
+ * its OWN landscape A4 page with the long dim running horizontally
+ * (matches the screen visualizer's auto-rotate behavior). Near-square
+ * sheets (aspect ≤ 1.3) keep the natural portrait flow and stay inline
+ * with the legend page above. Threshold 1.3 hits the sweet spot: roll
+ * stock (78×396, 5×) rotates; cut sheets (96×120, 1.25×) don't.
+ */
+const ROTATE_ASPECT_THRESHOLD = 1.3
+
+/**
+ * Rotate a LayoutModel 90° counter-clockwise so the original `length`
+ * runs along the new horizontal axis. Used by the PDF renderer when a
+ * roll's long axis must lay flat on the page; the screen visualizer
+ * does the equivalent via a `<g transform="rotate(-90)">` wrapper plus
+ * counter-rotated text. Pure transform: returns a fresh LayoutModel,
+ * never mutates the input.
+ *
+ * Transform for any point in [0, sheetWidth] × [0, sheetLength]:
+ *   (x, y)  →  (y, sheetWidth − x)
+ * A rectangle's new corners flip too, so the new bounding box is:
+ *   newX = y
+ *   newY = sheetWidth − x − width
+ *   newWidth = height
+ *   newHeight = width
+ */
+function rotateLayoutForLandscape(layout: LayoutModel): LayoutModel {
+  const origW = layout.sheetWidth
+  const remapRect = <T extends { x: number; y: number; width: number; height: number }>(
+    r: T
+  ): T => ({
+    ...r,
+    x: r.y,
+    y: origW - r.x - r.width,
+    width: r.height,
+    height: r.width,
+  })
+  const remapPolygon = (
+    poly: ReadonlyArray<{ x: number; y: number }> | undefined
+  ): Array<{ x: number; y: number }> | undefined =>
+    poly?.map((pt) => ({ x: pt.y, y: origW - pt.x }))
+  return {
+    ...layout,
+    sheetWidth: layout.sheetLength,
+    sheetLength: layout.sheetWidth,
+    parts: layout.parts.map((p) => ({
+      ...remapRect(p),
+      polygon: remapPolygon(p.polygon),
+      holes: p.holes?.map((h) => remapPolygon(h)).filter(
+        (h): h is Array<{ x: number; y: number }> => h !== undefined
+      ),
+      packPolygon: remapPolygon(p.packPolygon),
+    })),
+    offcuts: layout.offcuts.map((r) => ({ ...remapRect(r), polygon: remapPolygon(r.polygon) })),
+    scrap: layout.scrap.map((r) => ({ ...remapRect(r), polygon: remapPolygon(r.polygon) })),
+    debugScrapRects: layout.debugScrapRects?.map((r) => ({
+      ...remapRect(r),
+      polygon: remapPolygon(r.polygon),
+    })),
+  }
+}
+
 async function addLayoutDiagrams(
   doc: jsPDF,
   layouts: LayoutModel[],
   offcutSummary: ReadonlyArray<OffcutSummaryRow>,
-  y: number
+  y: number,
+  unitPreferences?: UnitDisplayPreferencesInput
 ): Promise<number> {
   for (let i = 0; i < layouts.length; i++) {
     const layout = layouts[i]
     if (layout.sheetWidth <= 0 || layout.sheetLength <= 0) continue
-    const showRollHeader = layouts.length > 1
 
-    // True-aspect sizing: scale to fit CONTENT_W minus the dimension gutter,
-    // then derive the panel height from the layout's actual aspect ratio.
-    // Long rolls render flat — vector zoom keeps them legible.
-    const diagramMaxW = Math.max(1, CONTENT_W - DIM_GUTTER_RIGHT_MM)
-    const aspect = layout.sheetLength / layout.sheetWidth
-    const drawW = diagramMaxW
-    const drawH = drawW * aspect
+    const longer = Math.max(layout.sheetWidth, layout.sheetLength)
+    const shorter = Math.min(layout.sheetWidth, layout.sheetLength)
+    const aspect = shorter > 0 ? longer / shorter : 1
+    const useLandscapePage = aspect > ROTATE_ASPECT_THRESHOLD
+    // Rotate the body content only when the long axis is currently the
+    // "length" (height) axis — preserves natural orientation for sheets
+    // that are already wider than tall.
+    const rotateBody = useLandscapePage && layout.sheetLength > layout.sheetWidth
+    const renderLayout = rotateBody ? rotateLayoutForLandscape(layout) : layout
+    const sheetW = renderLayout.sheetWidth
+    const sheetL = renderLayout.sheetLength
+
+    // Each roll diagram starts on a fresh page; matches Kimi's spec
+    // that diagram pages live independently of the cover/table pages.
+    doc.addPage("a4", useLandscapePage ? "landscape" : "portrait")
+    const pageW = useLandscapePage ? PAGE_H : PAGE_W
+    const pageH = useLandscapePage ? PAGE_W : PAGE_H
+    const contentW = pageW - MARGIN * 2
+    const contentH = pageH - MARGIN * 2
+    let pageY = MARGIN
+
+    if (layouts.length > 1) {
+      doc.setFontSize(10)
+      doc.setTextColor(...GRAY_900)
+      doc.setFont("helvetica", "bold")
+      doc.text(`Roll ${i + 1} of ${layouts.length}`, MARGIN, pageY + 3)
+      pageY += 8
+    }
+
+    // True-aspect sizing inside the page's content box.
+    const diagramMaxW = Math.max(1, contentW - DIM_GUTTER_RIGHT_MM)
+    const diagramMaxH = Math.max(1, contentH - (pageY - MARGIN) - DIM_GUTTER_BOTTOM_MM)
+    const scale = Math.min(diagramMaxW / sheetW, diagramMaxH / sheetL)
+    const drawW = sheetW * scale
+    const drawH = sheetL * scale
+    const boxW = drawW + DIM_GUTTER_RIGHT_MM
     const boxH = drawH + DIM_GUTTER_BOTTOM_MM
-    const boxW = CONTENT_W
 
-    y = renderRollHeader(doc, y, {
-      show: showRollHeader,
-      rollIndex: i,
-      rollTotal: layouts.length,
-      panelHeightMm: boxH,
-    })
-    const rollOffcuts = offcutSummary.filter((row) => row.rollIndex === i + 1)
-    renderLayoutToDoc(doc, layout, MARGIN, y, boxW, boxH, rollOffcuts)
-    y += boxH + 8
+    const rollOffcutsRaw = offcutSummary.filter((row) => row.rollIndex === i + 1)
+    // Marker chips reference row.region.(x, y) in the original sheet
+    // coordinate space. When the body is rotated for landscape, those
+    // coords land outside the rotated bounding box (the (29", 152.125")
+    // anchor of an offcut on a 78×396 sheet plots at ~98mm of vertical
+    // offset, well below a 50mm-tall rotated diagram). Re-apply the
+    // same rotation so the marker numbers visually sit on top of the
+    // amber zones they identify. The page-4 summary table receives the
+    // un-rotated rows so operators can read the physical (x, y) anchor.
+    const rollOffcuts = rotateBody
+      ? rollOffcutsRaw.map((row) => ({
+          ...row,
+          region: {
+            x: row.region.y,
+            y: layout.sheetWidth - row.region.x - row.region.width,
+            width: row.region.height,
+            height: row.region.width,
+            polygon: row.region.polygon?.map((pt) => ({
+              x: pt.y,
+              y: layout.sheetWidth - pt.x,
+            })),
+          },
+        }))
+      : rollOffcutsRaw
+    renderLayoutToDoc(doc, renderLayout, MARGIN, pageY, boxW, boxH, rollOffcuts, unitPreferences)
+    // y for the next non-diagram section. We force a fresh page after
+    // the last diagram so portrait flow resumes from the top.
+    if (i === layouts.length - 1) {
+      doc.addPage("a4", "portrait")
+      y = MARGIN
+    } else {
+      y = pageY + boxH + 8
+    }
   }
   return y
-}
-
-interface RollHeaderArgs {
-  show: boolean
-  rollIndex: number
-  rollTotal: number
-  panelHeightMm: number
-}
-
-function renderRollHeader(doc: jsPDF, y: number, args: RollHeaderArgs): number {
-  const headerHeight = args.show ? 8 : 0
-  const reserved = headerHeight + args.panelHeightMm + 8
-  y = checkNewPage(doc, y, reserved)
-  if (!args.show) return y
-
-  doc.setFontSize(10)
-  doc.setTextColor(...GRAY_900)
-  doc.setFont("helvetica", "bold")
-  doc.text(`Roll ${args.rollIndex + 1} of ${args.rollTotal}`, MARGIN, y + 3)
-  return y + headerHeight
 }
 
 async function addDiagrams(doc: jsPDF, svgElements: SVGSVGElement[], y: number): Promise<number> {
@@ -881,17 +1119,25 @@ async function addDiagrams(doc: jsPDF, svgElements: SVGSVGElement[], y: number):
  * use this to plan strip recovery without having to read dimensions
  * off the rendered layout.
  */
-function addOffcutSummary(doc: jsPDF, rows: ReadonlyArray<OffcutSummaryRow>, y: number): number {
+function addOffcutSummary(
+  doc: jsPDF,
+  rows: ReadonlyArray<OffcutSummaryRow>,
+  y: number,
+  unitPreferences?: UnitDisplayPreferencesInput
+): number {
   if (rows.length === 0) return y
   const showRoll = rows.some((r) => r.rollTotal > 1)
 
   y = checkNewPage(doc, y, 24)
 
+  // Phase 7 section divider.
+  doc.setFillColor(...BRAND)
+  doc.rect(MARGIN, y, CONTENT_W, 0.7, "F")
   doc.setFontSize(11)
   doc.setTextColor(...GRAY_900)
   doc.setFont("helvetica", "bold")
-  doc.text("Reusable Offcuts", MARGIN, y)
-  y += 6
+  doc.text("Reusable Offcuts", MARGIN, y + 5)
+  y += 11
 
   // Column allocation: # / Roll / Location / Size / Area / Type. The
   // Roll column collapses out for single-roll exports so dimensions get
@@ -915,17 +1161,19 @@ function addOffcutSummary(doc: jsPDF, rows: ReadonlyArray<OffcutSummaryRow>, y: 
       ]
   const widths = cols.map((c) => c.width * CONTENT_W)
 
+  // Phase 7 table header: transparent fill + brand-blue 0.35mm underline.
   const drawHeader = (headerY: number): number => {
-    doc.setFillColor(...BRAND)
-    doc.rect(MARGIN, headerY - 3.5, CONTENT_W, 6, "F")
     doc.setFontSize(8)
-    doc.setTextColor(...WHITE)
+    doc.setTextColor(...GRAY_900)
     doc.setFont("helvetica", "bold")
     let cx = MARGIN + 3
     for (let i = 0; i < cols.length; i++) {
       doc.text(cols[i].label, cx, headerY)
       cx += widths[i]
     }
+    doc.setDrawColor(...BRAND)
+    doc.setLineWidth(0.35)
+    doc.line(MARGIN, headerY + 1.5, MARGIN + CONTENT_W, headerY + 1.5)
     return headerY + 5
   }
 
@@ -957,15 +1205,23 @@ function addOffcutSummary(doc: jsPDF, rows: ReadonlyArray<OffcutSummaryRow>, y: 
     }
     doc.setTextColor(...GRAY_700)
     doc.setFont("helvetica", "normal")
-    doc.text(`${formatInch(row.region.x)}, ${formatInch(row.region.y)}`, x, y)
+    doc.text(
+      `${formatInch(row.region.x, unitPreferences)}, ${formatInch(row.region.y, unitPreferences)}`,
+      x,
+      y
+    )
     x += widths[showRoll ? 2 : 1]
     doc.setTextColor(...GRAY_900)
     doc.setFont("helvetica", "bold")
-    doc.text(`${formatInch(row.region.width)} × ${formatInch(row.region.height)}`, x, y)
+    doc.text(
+      `${formatInch(row.region.width, unitPreferences)} × ${formatInch(row.region.height, unitPreferences)}`,
+      x,
+      y
+    )
     x += widths[showRoll ? 3 : 2]
     doc.setTextColor(...GRAY_900)
     doc.setFont("helvetica", "normal")
-    doc.text(`${row.areaSqFt.toFixed(2)} sqft`, x, y)
+    doc.text(formatAreaSqft(row.areaSqFt, unitPreferences, { precision: 2 }), x, y)
     x += widths[showRoll ? 4 : 3]
     doc.setTextColor(...GRAY_700)
     doc.setFont("helvetica", "normal")
@@ -979,30 +1235,36 @@ function addOffcutSummary(doc: jsPDF, rows: ReadonlyArray<OffcutSummaryRow>, y: 
 
 function addMetrics(doc: jsPDF, data: CutPdfData, y: number): number {
   y = checkNewPage(doc, y, 50)
+  // Phase 7 section divider.
+  doc.setFillColor(...BRAND)
+  doc.rect(MARGIN, y, CONTENT_W, 0.7, "F")
   doc.setFontSize(11)
   doc.setTextColor(...GRAY_900)
   doc.setFont("helvetica", "bold")
-  doc.text("Metrics", MARGIN, y)
-  y += 6
+  doc.text("Metrics", MARGIN, y + 5)
+  y += 11
 
   const rollNote = data.rollCount > 1 ? ` across ${data.rollCount} rolls` : ""
+  const fmtArea = (value: number) =>
+    formatAreaSqft(value, data.organizationPreferences, { precision: 2 })
   const metrics = [
     ["Parts Completed", `${data.partsCompleted}${rollNote}`],
-    ["Material Used", `${data.materialUsedSqFt.toFixed(2)} sq ft`],
-    ["Reusable Offcut", `${data.reusableOffcutSqFt.toFixed(2)} sq ft`],
-    ["Scrap / Waste", `${data.scrapSqFt.toFixed(2)} sq ft`],
+    ["Material Used", fmtArea(data.materialUsedSqFt)],
+    ["Reusable Offcut", fmtArea(data.reusableOffcutSqFt)],
+    ["Scrap / Waste", fmtArea(data.scrapSqFt)],
     ["Cut Pieces", `${data.cutPieces}`],
     ["Fab Score", `${Math.round(data.fabScore * 100)} / 100`],
   ]
 
-  // Header row
-  doc.setFillColor(...BRAND)
-  doc.rect(MARGIN, y - 3.5, CONTENT_W, 6, "F")
+  // Header row — caption + brand-blue underline (transparent fill).
   doc.setFontSize(8)
-  doc.setTextColor(...WHITE)
+  doc.setTextColor(...GRAY_900)
   doc.setFont("helvetica", "bold")
   doc.text("METRIC", MARGIN + 3, y)
   doc.text("VALUE", MARGIN + CONTENT_W / 2, y)
+  doc.setDrawColor(...BRAND)
+  doc.setLineWidth(0.35)
+  doc.line(MARGIN, y + 1.5, MARGIN + CONTENT_W, y + 1.5)
   y += 5
 
   doc.setFontSize(9)
@@ -1029,11 +1291,14 @@ function addAdhesives(doc: jsPDF, data: CutPdfData, y: number): number {
   if (data.materialUsedSqFt <= 0) return y
   y = checkNewPage(doc, y, 35)
 
+  // Phase 7 section divider.
+  doc.setFillColor(...BRAND)
+  doc.rect(MARGIN, y, CONTENT_W, 0.7, "F")
   doc.setFontSize(11)
   doc.setTextColor(...GRAY_900)
   doc.setFont("helvetica", "bold")
-  doc.text("Adhesive Requirements", MARGIN, y)
-  y += 6
+  doc.text("Adhesive Requirements", MARGIN, y + 5)
+  y += 11
 
   const pr200 = data.materialUsedSqFt / 380
   const sc4000 = data.materialUsedSqFt / 47
@@ -1044,14 +1309,16 @@ function addAdhesives(doc: jsPDF, data: CutPdfData, y: number): number {
     ["E40 Hardener", `${e40.toFixed(2)} units`, "4 units / gal SC4000"],
   ]
 
-  doc.setFillColor(...BRAND)
-  doc.rect(MARGIN, y - 3.5, CONTENT_W, 6, "F")
+  // Header row — caption + brand-blue underline.
   doc.setFontSize(8)
-  doc.setTextColor(...WHITE)
+  doc.setTextColor(...GRAY_900)
   doc.setFont("helvetica", "bold")
   doc.text("ADHESIVE", MARGIN + 3, y)
   doc.text("AMOUNT", MARGIN + 65, y)
   doc.text("COVERAGE RATE", MARGIN + 115, y)
+  doc.setDrawColor(...BRAND)
+  doc.setLineWidth(0.35)
+  doc.line(MARGIN, y + 1.5, MARGIN + CONTENT_W, y + 1.5)
   y += 5
 
   doc.setFontSize(9)
@@ -1077,24 +1344,23 @@ function addAdhesives(doc: jsPDF, data: CutPdfData, y: number): number {
   return y
 }
 
-function addFooter(doc: jsPDF): void {
-  const totalPages = doc.internal.pages.length - 1
+function addFooter(doc: jsPDF, cutId: string): void {
+  // Phase 7 footer \u2014 ghost divider + product mark (left) + page counter
+  // (center, mono) + record id (right). Same shape as
+  // stampFooterOnEveryPage but rendered in mm to match the doc unit.
+  const totalPages = doc.getNumberOfPages()
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i)
     doc.setDrawColor(...GRAY_200)
-    doc.setLineWidth(0.3)
-    doc.line(MARGIN, PAGE_H - 15, MARGIN + CONTENT_W, PAGE_H - 15)
+    doc.setLineWidth(0.18)
+    doc.line(MARGIN, PAGE_H - 14, PAGE_W - MARGIN, PAGE_H - 14)
+    doc.setFont("helvetica", "bold")
     doc.setFontSize(7)
     doc.setTextColor(...GRAY_500)
-    doc.setFont("helvetica", "normal")
-    const mainFooter = "Rubberfit Pro \u2014 Material Optimization System "
-    doc.text(mainFooter, MARGIN, PAGE_H - 10)
-    const mainW = doc.getTextWidth(mainFooter)
-    doc.setFont("helvetica", "italic")
-    doc.text("by Arc and Anchor", MARGIN + mainW, PAGE_H - 10)
-    doc.setFont("helvetica", "normal")
-    doc.setFontSize(8)
-    doc.text(`Page ${i} of ${totalPages}`, PAGE_W - MARGIN, PAGE_H - 10, { align: "right" })
+    doc.text("Rubberfit", MARGIN, PAGE_H - 10)
+    doc.setFont("courier", "normal")
+    doc.text(`Page ${i} of ${totalPages}`, PAGE_W / 2, PAGE_H - 10, { align: "center" })
+    doc.text(`#${cutId}`, PAGE_W - MARGIN, PAGE_H - 10, { align: "right" })
   }
 }
 
@@ -1124,7 +1390,8 @@ export async function buildAndUploadCutPdf(
   selectedTemplate: PartTemplate | undefined,
   selectedTemplates: PartTemplate[],
   tags: Map<string, string>,
-  layouts?: LayoutModel[]
+  layouts?: LayoutModel[],
+  organizationPreferences?: UnitDisplayPreferencesInput & UserDatePreferencesInput
 ): Promise<string | null> {
   // Prefer vector layout diagrams when available — fall back to legacy DOM SVG
   // scraping only when called without layouts (e.g. very old call sites).
@@ -1160,6 +1427,7 @@ export async function buildAndUploadCutPdf(
     scrapPct,
     fabScore: cutMetrics?.fabScore ?? 0,
     cutDate: new Date().toISOString(),
+    organizationPreferences,
   }
 
   const pdfBlob = await generateCutPdf({ svgElements, layouts: layouts ?? [], data: pdfData })
@@ -1181,24 +1449,23 @@ export async function generateCutPdf(args: {
     creator: "Rubberfit Pro",
   })
 
-  const logo = getLogo()
   // Compute the offcut summary once up front so the diagram pass and
   // the table section share the same numbering and filtering.
   const offcutSummary = layouts.length > 0 ? buildOffcutSummary(layouts) : []
 
-  let y = addHeader(doc, data, logo)
+  let y = addHeader(doc, data)
   y = addSummaryCards(doc, data, y)
   y = addCutLegend(doc, data.tagMap, y)
   // Vector path when layouts are provided, raster fallback otherwise.
   if (layouts.length > 0) {
-    y = await addLayoutDiagrams(doc, layouts, offcutSummary, y)
+    y = await addLayoutDiagrams(doc, layouts, offcutSummary, y, data.organizationPreferences)
   } else {
     y = await addDiagrams(doc, svgElements, y)
   }
-  y = addOffcutSummary(doc, offcutSummary, y)
+  y = addOffcutSummary(doc, offcutSummary, y, data.organizationPreferences)
   y = addMetrics(doc, data, y)
   addAdhesives(doc, data, y)
-  addFooter(doc)
+  addFooter(doc, data.cutId)
 
   return doc.output("blob")
 }

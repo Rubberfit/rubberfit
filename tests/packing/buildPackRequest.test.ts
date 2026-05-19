@@ -6,12 +6,15 @@ import type { Part, Bin } from "@/src/application/packing/types"
 const PART_A: Part = {
   shapeId: "a",
   quantity: 2,
-  polygon: [
-    { x: 0, y: 0 },
-    { x: 10, y: 0 },
-    { x: 10, y: 5 },
-    { x: 0, y: 5 },
-  ],
+  polygon: {
+    outer: [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 5 },
+      { x: 0, y: 5 },
+    ],
+    holes: [],
+  },
   allowRotation: true,
 }
 

@@ -256,3 +256,4 @@ export function removeLocalStorageValue(key: string) {
 ## Subdirectories
 
 - **preferences/** -- User preference system: config definitions, persistence layer (cookie/localStorage), theme types and DOM application, layout utilities
+- **pdf/** -- Phase 7 PDF design system. Locked tokens (RGB triples, type roles, page geometry) + shared chrome (`drawCustomerChrome` / `drawInternalChrome` / `stampFooterOnEveryPage`) + primitives (KPI card, ruled table, status chip, section divider, signature block, label accents). Every per-PDF builder under `app/dashboard/**/_components/*-pdf.ts` and `app/r/**/route.ts` composes these helpers. **Purity rule:** nothing in this directory may reference `document`, `window`, `Image`, browser bwip, `toast`, or any other browser-only global — the server-side cut-PDF route imports from here in a Node runtime. Guarded by `tests/pdf/chrome-purity.test.ts`.

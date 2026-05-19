@@ -18,6 +18,12 @@ import { StockSheet } from "@/app/dashboard/cutting-engine/_components/stock-she
 import { RollDetailMeta } from "./roll-detail-meta"
 import { RollDetailOffcuts } from "./roll-detail-offcuts"
 import { RollDetailUsage } from "./roll-detail-usage"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import {
+  formatDimensionsInches,
+  getAreaUnitLabel,
+  getDisplayAreaValue,
+} from "@/src/application/preferences/user-unit-display"
 import { downloadRollLabelPdf } from "./roll-label-pdf"
 
 interface RollDetailBodyProps {
@@ -57,6 +63,7 @@ function formatCurrency(value: number): string {
  */
 export function RollDetailBody({ roll, onEdit, canManageRolls, onClose }: RollDetailBodyProps) {
   const router = useRouter()
+  const organizationPreferences = useOrganizationPreferences()
   const [usage, setUsage] = useState<RollReusableOffcutSummary | null>(null)
   const [offcuts, setOffcuts] = useState<Roll[]>([])
 
@@ -109,7 +116,7 @@ export function RollDetailBody({ roll, onEdit, canManageRolls, onClose }: RollDe
   const handlePrintLabel = async () => {
     try {
       await ensureStoredRollBarcode(roll)
-      downloadRollLabelPdf([roll])
+      downloadRollLabelPdf([roll], { organizationPreferences })
       toast.success("Label PDF downloaded")
     } catch (error) {
       const m = error instanceof Error ? error.message : "Unknown error"
@@ -140,9 +147,13 @@ export function RollDetailBody({ roll, onEdit, canManageRolls, onClose }: RollDe
                 <span className="font-mono text-foreground/80">{roll.part_number}</span>
               )}
               {roll.part_number && <span className="text-border">·</span>}
-              <span>
+              <span className="tabular-nums">
                 {roll.color ? `${roll.color} · ` : ""}
-                {roll.width}&quot; × {roll.length}&quot; × {roll.thickness}&quot;
+                {formatDimensionsInches(
+                  [roll.width, roll.length, roll.thickness],
+                  organizationPreferences,
+                  { precision: 3 }
+                )}
               </span>
             </SheetDescription>
           </div>
@@ -188,9 +199,11 @@ export function RollDetailBody({ roll, onEdit, canManageRolls, onClose }: RollDe
               <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                 Available
               </p>
-              <p className="mt-1 font-semibold text-sm text-foreground">
-                {remainingSqft.toFixed(1)}{" "}
-                <span className="font-normal text-[11px] text-muted-foreground">sqft</span>
+              <p className="mt-1 font-semibold text-sm text-foreground tabular-nums">
+                {getDisplayAreaValue(remainingSqft, organizationPreferences).toFixed(1)}{" "}
+                <span className="font-normal text-[11px] text-muted-foreground">
+                  {getAreaUnitLabel(organizationPreferences)}
+                </span>
               </p>
             </div>
             <div className="rounded-md border border-border-subtle bg-muted/30 p-3">

@@ -1,12 +1,15 @@
 "use client"
 
-import { memo, useCallback, useEffect, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { KonvaEventObject } from "konva/lib/Node"
 import type { Group as KonvaGroupNode } from "konva/lib/Group"
-import { Circle, Ellipse, Group, Line, Rect, Ring, Text } from "react-konva"
+import type { Context as KonvaContext } from "konva/lib/Context"
+import type { Shape as KonvaShapeNode } from "konva/lib/Shape"
+import { Circle, Ellipse, Group, Line, Rect, Ring, Shape, Text } from "react-konva"
 
 import type { PlacedPart } from "./layout-model"
 import type { KonvaThemeTokens } from "./konva-theme"
+import { polygonCentroid } from "./part-label"
 
 /**
  * Callback when a draggable part finishes moving. Coordinates are
@@ -201,17 +204,51 @@ const PartShape = memo(function PartShape({
       />
     )
   } else if (part.polygon && part.polygon.length >= 3) {
-    const points = part.polygon.flatMap((pt) => [(pt.x - part.x) * scale, (pt.y - part.y) * scale])
-    body = (
-      <Line
-        points={points}
-        closed
-        fill={fill}
-        stroke={stroke}
-        strokeWidth={strokeWidth}
-        {...shadowProps}
-      />
-    )
+    const validHoles = (part.holes ?? []).filter((h) => h.length >= 3)
+    if (validHoles.length > 0) {
+      // Compound path render: outer ring + N hole loops painted via
+      // `ctx.fill("evenodd")` so holes become true transparent cutouts.
+      // Per Kimi K2.6 visual verdict (2026-05-15):
+      //   - same 1px stroke on outer AND every hole boundary (every
+      //     line is a cut; lighter strokes make holes read as
+      //     decorative rather than subtractive)
+      //   - selection teal stroke applies to outer ONLY (one teal
+      //     ring keeps focus; stroking each hole adds visual noise)
+      //   - hit area excludes holes via even-odd hitFunc so a click
+      //     in the bore passes through instead of selecting the part
+      body = (
+        <CompoundPolygonShape
+          outer={part.polygon}
+          holes={validHoles}
+          partX={part.x}
+          partY={part.y}
+          scale={scale}
+          fill={fill}
+          // Hole boundaries always get the neutral part stroke — the
+          // teal selection accent is reserved for the outer ring only
+          // (Codex review P3 + Kimi K2.6 verdict). When the part is
+          // selected, `stroke` upstream resolves to selectedStroke;
+          // pass `partStroke` here so the compound-path stroke stays
+          // neutral on the hole boundaries.
+          stroke={theme.partStroke}
+          selectedStroke={isSelected ? theme.selectedStroke : null}
+          strokeWidth={1}
+          shadowProps={shadowProps}
+        />
+      )
+    } else {
+      const points = part.polygon.flatMap((pt) => [(pt.x - part.x) * scale, (pt.y - part.y) * scale])
+      body = (
+        <Line
+          points={points}
+          closed
+          fill={fill}
+          stroke={stroke}
+          strokeWidth={strokeWidth}
+          {...shadowProps}
+        />
+      )
+    }
   } else {
     body = (
       <Rect
@@ -229,6 +266,26 @@ const PartShape = memo(function PartShape({
   }
 
   const fontSize = Math.max(9, Math.min(14, Math.min(pw, ph) / 3))
+
+  // Label anchor: bbox center by default; for hole-bearing parts the
+  // bbox center can land in the bore (ring gaskets, full-face gaskets),
+  // so shift to the outer-ring centroid per Kimi K2.6 verdict. The
+  // delta is the shift FROM the default bbox-center anchor TO the
+  // centroid, applied to the Text x/y below — not an absolute coord
+  // (Codex review P2-2). Computed once per render via useMemo —
+  // polygonCentroid is O(N) on a single closed loop.
+  const labelOffset = useMemo(() => {
+    if (!part.polygon || part.polygon.length < 3 || !part.holes || part.holes.length === 0) {
+      return null
+    }
+    const c = polygonCentroid(part.polygon)
+    // Centroid in part-local coords (offset from part.x/part.y), then
+    // shift from bbox center (pw/2, ph/2) to centroid position.
+    return {
+      dx: (c.x - part.x) * scale - pw / 2,
+      dy: (c.y - part.y) * scale - ph / 2,
+    }
+  }, [part.polygon, part.holes, part.x, part.y, pw, ph, scale])
 
   return (
     <Group
@@ -249,8 +306,8 @@ const PartShape = memo(function PartShape({
     >
       {body}
       <Text
-        x={0}
-        y={ph / 2 - fontSize}
+        x={labelOffset ? labelOffset.dx : 0}
+        y={(labelOffset ? labelOffset.dy : 0) + ph / 2 - fontSize}
         width={pw}
         height={fontSize * 2}
         text={part.label}
@@ -311,6 +368,126 @@ function buildShadowProps(
     shadowOffsetY: 2,
     shadowOpacity: 0.2,
   }
+}
+
+interface CompoundPolygonShapeProps {
+  outer: ReadonlyArray<{ x: number; y: number }>
+  holes: ReadonlyArray<ReadonlyArray<{ x: number; y: number }>>
+  partX: number
+  partY: number
+  scale: number
+  fill: string
+  stroke: string
+  /**
+   * Non-null when the part is selected — drives the additional teal
+   * outline traced on the outer ring only (Kimi K2.6 verdict — one
+   * teal stroke per part, never per hole).
+   */
+  selectedStroke: string | null
+  strokeWidth: number
+  shadowProps: ShadowProps
+}
+
+/**
+ * Konva renderer for a part with N inner holes. Paints the compound
+ * path via the underlying canvas context's even-odd fill rule so
+ * holes are true transparent cutouts (no fill leak through them, no
+ * "two-overlapping-shapes" trick that breaks under shadows or hover).
+ *
+ * `sceneFunc` builds outer + each hole as subpaths, fills with
+ * even-odd, then strokes the same compound path so each cut line
+ * shows. `hitFunc` builds the same path and fills with the shape's
+ * hit color under the even-odd rule, so a click inside a hole passes
+ * through (clicks register on whatever lies behind, not the part).
+ *
+ * The outer-only selection stroke is drawn as a follow-up overlay
+ * on the same shape — bypassing the compound path so only the outer
+ * ring picks up the teal accent.
+ */
+function CompoundPolygonShape({
+  outer,
+  holes,
+  partX,
+  partY,
+  scale,
+  fill,
+  stroke,
+  selectedStroke,
+  strokeWidth,
+  shadowProps,
+}: CompoundPolygonShapeProps) {
+  const buildCompoundPath = (context: KonvaContext) => {
+    context.beginPath()
+    context.moveTo((outer[0].x - partX) * scale, (outer[0].y - partY) * scale)
+    for (let i = 1; i < outer.length; i++) {
+      context.lineTo((outer[i].x - partX) * scale, (outer[i].y - partY) * scale)
+    }
+    context.closePath()
+    for (const hole of holes) {
+      context.moveTo((hole[0].x - partX) * scale, (hole[0].y - partY) * scale)
+      for (let i = 1; i < hole.length; i++) {
+        context.lineTo((hole[i].x - partX) * scale, (hole[i].y - partY) * scale)
+      }
+      context.closePath()
+    }
+  }
+
+  const buildOuterPath = (context: KonvaContext) => {
+    context.beginPath()
+    context.moveTo((outer[0].x - partX) * scale, (outer[0].y - partY) * scale)
+    for (let i = 1; i < outer.length; i++) {
+      context.lineTo((outer[i].x - partX) * scale, (outer[i].y - partY) * scale)
+    }
+    context.closePath()
+  }
+
+  const sceneFunc = (context: KonvaContext, _shape: KonvaShapeNode) => {
+    // Compound fill + stroke under even-odd. Konva's `Context` wrapper
+    // intentionally does NOT accept a fill-rule argument on `fill()`
+    // (see Konva issues #422, #1117) — the documented escape hatch
+    // for custom rendering inside a `sceneFunc` is to reach for
+    // `context._context`, the underlying `CanvasRenderingContext2D`.
+    // This is the same pattern Konva's own examples use for hatched
+    // fills, gradient lookups, and any other Canvas2D API outside
+    // Konva's wrapper surface.
+    //
+    // The reach is documented as part of Konva's public sceneFunc
+    // contract; treating it as private state would force a heavier
+    // workaround (offscreen canvas + Image fill via pattern) for a
+    // single Canvas2D call. CodeRabbit flagged this as "hijacking
+    // internals"; the alternative is materially worse for a small
+    // feature. Pinned by the dispatch test in
+    // tests/cutting-engine/polygon-with-holes-konva.test.tsx so a
+    // future Konva upgrade that renames `_context` surfaces here.
+    const raw = context._context
+    buildCompoundPath(context)
+    raw.fillStyle = fill
+    raw.fill("evenodd")
+    raw.strokeStyle = stroke
+    raw.lineWidth = strokeWidth
+    raw.stroke()
+    // Selection accent — outer ring only.
+    if (selectedStroke) {
+      buildOuterPath(context)
+      raw.strokeStyle = selectedStroke
+      raw.lineWidth = 2
+      raw.stroke()
+    }
+  }
+
+  const hitFunc = (context: KonvaContext, shape: KonvaShapeNode) => {
+    // Konva sets up the hit canvas's fillStyle/strokeStyle to the
+    // shape's unique color key. We must read those AFTER Konva has
+    // configured them — `colorKey` is the public API for the hit
+    // color. Fill the compound path even-odd so the hole interiors
+    // get NO hit color (transparent in the hit canvas → click-through).
+    const raw = context._context
+    buildCompoundPath(context)
+    raw.fillStyle = shape.colorKey
+    raw.fill("evenodd")
+  }
+
+  return <Shape sceneFunc={sceneFunc} hitFunc={hitFunc} {...shadowProps} />
 }
 
 export default PartShape

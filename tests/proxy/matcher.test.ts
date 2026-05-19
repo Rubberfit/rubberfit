@@ -33,13 +33,12 @@ describe("proxy matcher: covers app routes by default-deny", () => {
     "/api/tax-rates",
     "/api/cuts/history",
     "/api/admin/users",
-    "/api/v2/pack",
   ])("matches application path %s", (url) => {
     expect(matches(url)).toBe(true)
   })
 })
 
-describe("proxy matcher: excludes static assets", () => {
+describe("proxy matcher: excludes static assets and non-Next handlers", () => {
   it.each([
     "/_next/static/chunks/main.js",
     "/_next/static/css/app.css",
@@ -49,6 +48,7 @@ describe("proxy matcher: excludes static assets", () => {
     "/banner.png",
     "/photo.jpg",
     "/icon.webp",
+    "/api/v2/pack",
   ])("does not match static asset %s", (url) => {
     expect(matches(url)).toBe(false)
   })

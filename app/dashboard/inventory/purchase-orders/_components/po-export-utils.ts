@@ -2,6 +2,7 @@ import { format } from "date-fns"
 
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 import type { ExportData } from "@/src/application/services/export.service.interface"
+import type { UserDatePreferencesInput } from "@/src/application/preferences/user-date-format"
 
 export interface POExportFilters {
   status: string
@@ -22,16 +23,37 @@ export interface PurchaseOrdersExportInput {
   pos: PurchaseOrderWithDetails[]
   filters: POExportFilters
   stats: POExportSummary
+  /**
+   * Workspace-level locale / dateFormat / timeZone — applied to
+   * visible PDF text only (body dates, footer timestamp) per the
+   * 2026-05-14 operator-seeds-prints ruling. Personal viewer
+   * preferences still drive the on-screen PO drawer/cell display;
+   * the printed artifact always speaks in the operator's voice.
+   * CSV cell dates intentionally stay in the existing ISO format
+   * because operators import the CSV into spreadsheets where
+   * machine-stable dates matter more than localized display.
+   *
+   * Required so the PDF + CSV builders can't silently fall through
+   * to default formatting when a caller forgets to wire org prefs —
+   * the compiler now flags any missing data-flow path.
+   */
+  organizationPreferences: UserDatePreferencesInput
 }
 
-/** Snapshot the bits of `usePurchaseOrders` the export menu needs. */
+/**
+ * Snapshot the bits of `usePurchaseOrders` the export menu needs.
+ * Returns a partial export input without `organizationPreferences`;
+ * the caller must spread + add prefs from `useOrganizationPreferences()`
+ * to satisfy the required field (compile-time enforcement of the
+ * 2026-05-14 operator-seeds-prints data flow).
+ */
 export function toPurchaseOrdersExportInput(po: {
   filteredPOs: PurchaseOrderWithDetails[]
   statusFilter: string
   supplierFilter: string
   searchQuery: string
   stats: POExportSummary
-}): PurchaseOrdersExportInput {
+}): Omit<PurchaseOrdersExportInput, "organizationPreferences"> {
   return {
     pos: po.filteredPOs,
     filters: {
@@ -64,14 +86,9 @@ function formatMoney(value: number | null | undefined): string {
   return value.toFixed(2)
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;")
-}
+// Phase 7 PR 4 — `escapeHtml` + `activeFilterLabel` lived here only to
+// feed `buildPurchaseOrdersPdfHtml`, which is gone. Removed alongside
+// the HTML stamper path. CSV cell-injection sanitizer stays.
 
 /**
  * Neutralize CSV formula injection. Excel/Google Sheets evaluate cells
@@ -89,14 +106,6 @@ function sanitizeCsvCell(value: string): string {
   if (/^[\t\r]/.test(value)) return `'${value}`
   const trimmed = value.trimStart()
   return /^[=+\-@]/.test(trimmed) ? `'${value}` : value
-}
-
-function activeFilterLabel(filters: POExportFilters): string {
-  const parts: string[] = []
-  if (filters.status && filters.status !== "all") parts.push(`status=${filters.status}`)
-  if (filters.supplier && filters.supplier !== "all") parts.push(`supplier=${filters.supplier}`)
-  if (filters.search) parts.push(`search="${filters.search}"`)
-  return parts.length === 0 ? "none" : parts.join(", ")
 }
 
 export function buildPurchaseOrdersCsv(input: PurchaseOrdersExportInput): ExportData {
@@ -133,80 +142,8 @@ export function buildPurchaseOrdersCsv(input: PurchaseOrdersExportInput): Export
   return { headers, rows, filename: FILENAME }
 }
 
-export function buildPurchaseOrdersPdfHtml(input: PurchaseOrdersExportInput): {
-  title: string
-  content: string
-} {
-  const generatedAt = format(new Date(), "MMM d, yyyy")
-  const filterLabel = activeFilterLabel(input.filters)
-
-  const tableBody =
-    input.pos.length === 0
-      ? `<tr><td colspan="6">No purchase orders match the current filters.</td></tr>`
-      : input.pos
-          .map(
-            (po) => `
-            <tr>
-              <td>${escapeHtml(po.po_number)}</td>
-              <td>${escapeHtml(po.supplier?.name ?? "")}</td>
-              <td>${escapeHtml(po.status)}</td>
-              <td>${formatDate(po.order_date)}</td>
-              <td>${po.items_count ?? po.items?.length ?? 0}</td>
-              <td>$${formatMoney(po.total_amount)}</td>
-            </tr>
-          `
-          )
-          .join("")
-
-  const content = `
-    <h1>Purchase Orders</h1>
-    <p>Filters: ${escapeHtml(filterLabel)} · generated ${generatedAt}</p>
-
-    <h2>Summary</h2>
-    <div>
-      <div class="metric-card">
-        <div class="metric-value">${input.stats.total}</div>
-        <div class="metric-label">Total POs</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-value">$${formatMoney(input.stats.totalValue)}</div>
-        <div class="metric-label">Total Value</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-value">${input.stats.draft}</div>
-        <div class="metric-label">Draft</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-value">${input.stats.pending}</div>
-        <div class="metric-label">Pending</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-value">${input.stats.ordered}</div>
-        <div class="metric-label">In Transit</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-value">${input.stats.received}</div>
-        <div class="metric-label">Received</div>
-      </div>
-    </div>
-
-    <h2>Orders (${input.pos.length})</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>PO #</th>
-          <th>Supplier</th>
-          <th>Status</th>
-          <th>Order Date</th>
-          <th>Items</th>
-          <th>Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${tableBody}
-      </tbody>
-    </table>
-  `
-
-  return { title: "Purchase Orders", content }
-}
+// Phase 7 PR 4 — the HTML-stamper builder that used to live here is
+// gone. Filtered-list PDF generation now lives in `po-pdf.ts` and
+// returns a `jsPDF` instance built with the shared customer-canvas
+// chrome. Re-export for consumers that imported from this module.
+export { buildPurchaseOrdersListPdf, downloadPurchaseOrdersListPdf } from "./po-pdf"

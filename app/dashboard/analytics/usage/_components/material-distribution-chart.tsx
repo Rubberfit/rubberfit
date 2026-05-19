@@ -2,6 +2,8 @@
 
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import { formatAreaSqft } from "@/src/application/preferences/user-unit-display"
 
 interface MaterialUsage {
   materialType: string
@@ -30,6 +32,9 @@ const COLORS = [
 ]
 
 export function MaterialDistributionChart({ data }: MaterialDistributionChartProps) {
+  const organizationPreferences = useOrganizationPreferences()
+  const fmtArea = (value: number) =>
+    formatAreaSqft(value, organizationPreferences, { precision: 1 })
   const chartData = data.map((item, index) => ({
     ...item,
     color: COLORS[index % COLORS.length],
@@ -67,8 +72,8 @@ export function MaterialDistributionChart({ data }: MaterialDistributionChartPro
                         <div className="space-y-1">
                           <p className="text-sm">
                             <span className="text-muted-foreground">Used:</span>{" "}
-                            <span className="font-medium">
-                              {data.totalSqftUsed.toFixed(1)} sq ft
+                            <span className="font-medium tabular-nums">
+                              {fmtArea(data.totalSqftUsed)}
                             </span>
                           </p>
                           <p className="text-sm">
@@ -94,8 +99,8 @@ export function MaterialDistributionChart({ data }: MaterialDistributionChartPro
               <div key={item.materialType} className="flex items-center gap-2">
                 <div className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
                 <span className="text-sm font-medium">{item.materialType}</span>
-                <span className="ml-auto text-xs text-muted-foreground">
-                  {item.totalSqftUsed.toFixed(1)} sq ft
+                <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+                  {fmtArea(item.totalSqftUsed)}
                 </span>
               </div>
             ))}

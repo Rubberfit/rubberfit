@@ -159,7 +159,7 @@ pub fn extract_free_space_legacy_with(
 
     let placed: Vec<Polygon> = placements_in_bin
         .iter()
-        .filter_map(|p| Polygon::new(p.polygon.clone()).ok())
+        .map(|p| p.polygon.outer().clone())
         .collect();
 
     if placed.is_empty() {
@@ -228,7 +228,7 @@ pub fn extract_free_space_two_signal_with(
 
     let parts: Vec<Polygon> = placements_in_bin
         .iter()
-        .filter_map(|p| Polygon::new(p.polygon.clone()).ok())
+        .map(|p| p.polygon.outer().clone())
         .collect();
     if parts.is_empty() {
         return (Vec::new(), Vec::new());
@@ -246,7 +246,7 @@ pub fn extract_free_space_two_signal_with(
                 .pack_polygon
                 .as_deref()
                 .filter(|poly| poly.len() >= 3)
-                .unwrap_or(&p.polygon);
+                .unwrap_or_else(|| p.polygon.outer().points());
             Polygon::new(source.to_vec()).ok()
         })
         .collect();
@@ -320,12 +320,10 @@ pub fn extract_free_space_two_signal_with(
 fn compute_shape_trapped_scrap(placements: &[&Placement]) -> Vec<Polygon> {
     let mut raw: Vec<Polygon> = Vec::new();
     for p in placements {
-        let Some(bbox) = bbox_polygon(&p.polygon) else {
+        let Some(bbox) = bbox_polygon(p.polygon.outer().points()) else {
             continue;
         };
-        let Ok(part) = Polygon::new(p.polygon.clone()) else {
-            continue;
-        };
+        let part = p.polygon.outer().clone();
         let trapped = match clip_difference(&bbox, std::slice::from_ref(&part)) {
             Ok(polys) => polys,
             Err(_) => continue,
@@ -566,7 +564,7 @@ pub(crate) fn extract_offcuts_with_obstacles(
 pub fn union_placements(placements: &[&Placement]) -> Vec<Polygon> {
     let polys: Vec<Polygon> = placements
         .iter()
-        .filter_map(|p| Polygon::new(p.polygon.clone()).ok())
+        .map(|p| p.polygon.outer().clone())
         .collect();
     if polys.is_empty() {
         return Vec::new();
@@ -589,6 +587,11 @@ pub fn union_placements(placements: &[&Placement]) -> Vec<Polygon> {
 mod tests {
     use super::*;
     use crate::domain::{BinKind, OffcutKind};
+    use rf_geom::PolygonWithHoles;
+
+    fn simple_polygon(points: Vec<Point2D>) -> PolygonWithHoles {
+        PolygonWithHoles::from_outer_points(points).unwrap()
+    }
 
     fn fresh_bin(id: &str, w: f64, h: f64) -> Bin {
         Bin {
@@ -608,12 +611,12 @@ mod tests {
             x,
             y,
             rotation_rad: 0.0,
-            polygon: vec![
+            polygon: simple_polygon(vec![
                 Point2D::new(x, y),
                 Point2D::new(x + w, y),
                 Point2D::new(x + w, y + h),
                 Point2D::new(x, y + h),
-            ],
+            ]),
             width: w,
             height: h,
             difficulty: None,
@@ -716,12 +719,12 @@ mod tests {
             x: 6.0022,
             y: 0.1524,
             rotation_rad: std::f64::consts::FRAC_PI_2,
-            polygon: vec![
+            polygon: simple_polygon(vec![
                 Point2D::new(6.002192, 0.152377),
                 Point2D::new(6.000084, 6.152377),
                 Point2D::new(0.000085, 6.150269),
                 Point2D::new(0.002193, 0.150269),
-            ],
+            ]),
             width: 6.0,
             height: 6.0,
             difficulty: None,
@@ -735,12 +738,12 @@ mod tests {
             x: 6.0012,
             y: 12.278,
             rotation_rad: -std::f64::consts::PI,
-            polygon: vec![
+            polygon: simple_polygon(vec![
                 Point2D::new(6.001182, 12.278025),
                 Point2D::new(0.001182, 12.277377),
                 Point2D::new(0.001829, 6.277377),
                 Point2D::new(6.001829, 6.278025),
-            ],
+            ]),
             width: 6.0,
             height: 6.0,
             difficulty: None,
@@ -754,12 +757,12 @@ mod tests {
             x: 6.0068,
             y: 18.403,
             rotation_rad: std::f64::consts::PI,
-            polygon: vec![
+            polygon: simple_polygon(vec![
                 Point2D::new(6.006848, 18.403025),
                 Point2D::new(0.006848, 18.403172),
                 Point2D::new(0.006701, 12.403172),
                 Point2D::new(6.006701, 12.403025),
-            ],
+            ]),
             width: 6.0,
             height: 6.0,
             difficulty: None,
@@ -772,7 +775,7 @@ mod tests {
         // Maximum x reached by any part polygon.
         let max_part_x = [&p1, &p2, &p3]
             .iter()
-            .flat_map(|p| p.polygon.iter())
+            .flat_map(|p| p.polygon.outer().points().iter())
             .map(|v| v.x)
             .fold(f64::NEG_INFINITY, f64::max);
 
@@ -842,7 +845,7 @@ mod tests {
             x: tx,
             y: ty,
             rotation_rad: 0.0,
-            polygon,
+            polygon: simple_polygon(polygon),
             width: max_x - tx,
             height: max_y - ty,
             difficulty: None,
@@ -914,7 +917,7 @@ mod tests {
         );
 
         let bbox_area = p.width * p.height;
-        let sector_area = polygon_area_loop(&p.polygon);
+        let sector_area = polygon_area_loop(p.polygon.outer().points());
         let trapped_area: f64 = trapped.iter().map(|t| t.area()).sum();
         let expected = bbox_area - sector_area;
         assert!(
@@ -949,7 +952,7 @@ mod tests {
             x: 0.0,
             y: 0.0,
             rotation_rad: 0.0,
-            polygon,
+            polygon: simple_polygon(polygon),
             width: 1.0,
             height: 1.0,
             difficulty: None,
@@ -980,7 +983,7 @@ mod tests {
             "expected scrap polygons for a sector, got 0"
         );
         let bbox_area = p.width * p.height;
-        let sector_area = polygon_area_loop(&p.polygon);
+        let sector_area = polygon_area_loop(p.polygon.outer().points());
         let shape_trapped_expected = bbox_area - sector_area;
         let got: f64 = two_regions.iter().map(|r| r.area()).sum();
         assert!(
@@ -1030,7 +1033,7 @@ mod tests {
 
         // Replicate the obstacle construction inside the pipeline.
         let stock = build_stock_polygon(bin.width, bin.height).unwrap();
-        let obstacles: Vec<Polygon> = vec![Polygon::new(p.polygon.clone()).expect("rect polygon")];
+        let obstacles: Vec<Polygon> = vec![p.polygon.outer().clone()];
         let raw_offcuts = extract_offcuts_with_obstacles(&bin.bin_id, &[stock], &obstacles);
         let pre_reusable_sum: f64 = raw_offcuts
             .iter()

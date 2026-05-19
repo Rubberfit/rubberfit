@@ -3,9 +3,14 @@ import { toast } from "sonner"
 
 import { fetchCutsInRange } from "@/app/actions/cuts"
 import { rollService } from "@/src/infrastructure/services/rollService"
-import { exportPdfService } from "@/src/infrastructure/services/exportPdfService"
 import type { CutHistory, Roll } from "@/src/infrastructure/models/supabase"
 import type { ReportTemplate } from "./report-templates"
+import type { UnitDisplayPreferencesInput } from "@/src/application/preferences/user-unit-display"
+import type { UserDatePreferencesInput } from "@/src/application/preferences/user-date-format"
+import {
+  buildAnalyticsReportPdf,
+  type AnalyticsMaterialRow,
+} from "./analytics-report-pdf"
 
 /**
  * A CutHistory row decorated with its roll join. Replaces the
@@ -52,151 +57,56 @@ function getDateRange(reportPeriod: "daily" | "weekly" | "monthly" | "quarterly"
 
 function buildMaterialBreakdown(
   rolls: Array<Record<string, unknown>> | null
-): Record<string, { activeRolls: number; totalSqft: number; totalValue: number }> {
-  const materialBreakdown: Record<
+): AnalyticsMaterialRow[] {
+  const byMaterial = new Map<
     string,
     { activeRolls: number; totalSqft: number; totalValue: number }
-  > = {}
+  >()
 
-  ;(rolls || []).forEach((roll) => {
-    if (roll.status === "active") {
-      const materialType = roll.material_type as string
-      if (!materialBreakdown[materialType]) {
-        materialBreakdown[materialType] = {
-          activeRolls: 0,
-          totalSqft: 0,
-          totalValue: 0,
-        }
-      }
-      materialBreakdown[materialType].activeRolls += 1
-      materialBreakdown[materialType].totalSqft +=
-        ((roll.remaining_length as number) * (roll.width as number)) / 144
-      materialBreakdown[materialType].totalValue +=
-        ((roll.remaining_length as number) *
-          (roll.width as number) *
-          ((roll.cost_per_sqft as number) || 0)) /
-        144
+  for (const roll of rolls ?? []) {
+    if (roll.status !== "active") continue
+    const material = (roll.material_type as string) ?? "Unknown"
+    const sqft = ((roll.remaining_length as number) * (roll.width as number)) / 144
+    const value =
+      ((roll.remaining_length as number) *
+        (roll.width as number) *
+        ((roll.cost_per_sqft as number) || 0)) /
+      144
+    const existing = byMaterial.get(material)
+    if (existing) {
+      existing.activeRolls += 1
+      existing.totalSqft += sqft
+      existing.totalValue += value
+    } else {
+      byMaterial.set(material, { activeRolls: 1, totalSqft: sqft, totalValue: value })
     }
-  })
+  }
 
-  return materialBreakdown
+  return [...byMaterial.entries()].map(([material, data]) => ({
+    material,
+    activeRolls: data.activeRolls,
+    totalSqft: data.totalSqft,
+    totalValue: data.totalValue,
+  }))
 }
 
-function buildHtmlContent(
-  reportData: {
-    summary: {
-      totalCuts: number
-      totalMaterialUsed: number
-      averageWaste: number
-      totalInventoryValue: number
-    }
-    materialBreakdown: Record<
-      string,
-      { activeRolls: number; totalSqft: number; totalValue: number }
-    >
-    data: { cuts: CutWithRoll[] }
-  },
-  periodLabel: string,
-  startDate: Date,
-  endDate: Date
-): string {
-  return `
-    <p>Report Period: ${periodLabel}</p>
-    <p>Date Range: ${format(startDate, "MMM dd, yyyy")} - ${format(endDate, "MMM dd, yyyy")}</p>
-
-    <h2>Summary</h2>
-    <ul>
-      <li>Total Cuts: ${reportData.summary.totalCuts}</li>
-      <li>Total Material Used: ${reportData.summary.totalMaterialUsed.toFixed(2)} sqft</li>
-      <li>Average Waste: ${reportData.summary.averageWaste.toFixed(1)}%</li>
-      <li>Total Inventory Value: $${reportData.summary.totalInventoryValue.toFixed(2)}</li>
-    </ul>
-
-    <h2>Material Breakdown</h2>
-    ${
-      Object.keys(reportData.materialBreakdown).length > 0
-        ? `
-    <table style="width: 100%; border-collapse: collapse;">
-      <thead>
-        <tr>
-          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Material Type</th>
-          <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Active Rolls</th>
-          <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Total sqft</th>
-          <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Value</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${Object.entries(reportData.materialBreakdown)
-          .map(
-            ([material, data]: [
-              string,
-              { activeRolls: number; totalSqft: number; totalValue: number },
-            ]) => `
-          <tr>
-            <td style="border: 1px solid #ddd; padding: 8px;">${material}</td>
-            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${data.activeRolls || 0}</td>
-            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${(data.totalSqft || 0).toFixed(2)}</td>
-            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">$${(data.totalValue || 0).toFixed(2)}</td>
-          </tr>
-        `
-          )
-          .join("")}
-      </tbody>
-    </table>
-    `
-        : "<p>No material breakdown data available for this period.</p>"
-    }
-
-    <h2>Recent Cuts</h2>
-    ${
-      (reportData.data.cuts || []).length > 0
-        ? `
-    <table style="width: 100%; border-collapse: collapse;">
-      <thead>
-        <tr>
-          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Date</th>
-          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Material</th>
-          <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Dimensions</th>
-          <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Qty</th>
-          <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Waste %</th>
-          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Job</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${reportData.data.cuts
-          .slice(0, 20)
-          .map(
-            (cut: CutWithRoll) => `
-          <tr>
-            <td style="border: 1px solid #ddd; padding: 8px;">${format(new Date(cut.cut_date ?? cut.created_at), "MM/dd/yyyy")}</td>
-            <td style="border: 1px solid #ddd; padding: 8px;">${cut.roll?.material_type || "Unknown"}</td>
-            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${cut.cut_width}" × ${cut.cut_length}"</td>
-            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${cut.cut_amount}</td>
-            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${wastePercent(cut).toFixed(1)}%</td>
-            <td style="border: 1px solid #ddd; padding: 8px;">${cut.job_id ? cut.job_id.slice(0, 8) : "-"}</td>
-          </tr>
-        `
-          )
-          .join("")}
-      </tbody>
-    </table>
-    `
-        : "<p>No cuts recorded for this period.</p>"
-    }
-  `
-}
-
+/**
+ * Phase 7 PR 5 — generates the Analytics report PDF using the new
+ * imperative jsPDF builder (`buildAnalyticsReportPdf`). The legacy
+ * HTML stamper path (`exportPdfService.generatePDFReport(html)`)
+ * is gone. All 4 templates (waste / costs / trends / usage) compose
+ * into the same layout per founder Q4.
+ */
 export async function generateReport(
   reportId: string,
   reportTemplates: ReportTemplate[],
-  reportPeriod: "daily" | "weekly" | "monthly" | "quarterly"
-) {
-  // Report template lookup fails synchronously before any network
-  // work — no wrap needed; the caller decides how to surface it.
+  reportPeriod: "daily" | "weekly" | "monthly" | "quarterly",
+  organizationPreferences?: UnitDisplayPreferencesInput & UserDatePreferencesInput
+): Promise<void> {
   const report = reportTemplates.find((r) => r.id === reportId)
   if (!report) throw new Error("Report template not found")
 
-  // Simulate report generation delay
+  // Keep the artificial delay so the menu's in-flight guard is exercised.
   await new Promise((resolve) => setTimeout(resolve, 2000))
 
   const { startDate, endDate } = getDateRange(reportPeriod)
@@ -205,7 +115,7 @@ export async function generateReport(
   // The caller (reports/page.tsx) already wraps this in try/catch and
   // shows a toast on failure — rethrowing is enough, we just need to
   // preserve the single-layer error UI contract. `materialTypes` is not
-  // consumed by `buildHtmlContent`; skip the fetch so a material-type
+  // consumed by the PDF builder; skip the fetch so a material-type
   // service outage doesn't fail the whole export.
   const [rawCuts, rolls] = await Promise.all([
     fetchCutsInRange(startDate, endDate),
@@ -228,31 +138,33 @@ export async function generateReport(
     rolls as unknown as Array<Record<string, unknown>> | null
   )
 
-  const reportData = {
-    reportName: report.name,
-    period: reportPeriod,
-    startDate: startDate.toISOString(),
-    endDate: endDate.toISOString(),
-    generatedAt: new Date().toISOString(),
-    data: {
-      cuts,
-      rolls: rolls || [],
-    },
-    summary: {
-      totalCuts: cuts.length,
-      totalMaterialUsed: cuts.reduce((sum, cut) => sum + cut.material_used_sqft, 0),
-      averageWaste:
-        cuts.length > 0 ? cuts.reduce((sum, cut) => sum + wastePercent(cut), 0) / cuts.length : 0,
-      totalInventoryValue: (rolls || []).reduce(
-        (sum, roll) => sum + (roll.remaining_length * roll.width * (roll.cost_per_sqft || 0)) / 144,
-        0
-      ),
-    },
-    materialBreakdown,
+  const summary = {
+    totalCuts: cuts.length,
+    totalMaterialUsed: cuts.reduce((sum, cut) => sum + cut.material_used_sqft, 0),
+    averageWaste:
+      cuts.length > 0 ? cuts.reduce((sum, cut) => sum + wastePercent(cut), 0) / cuts.length : 0,
+    totalInventoryValue: (rolls || []).reduce(
+      (sum, roll) => sum + (roll.remaining_length * roll.width * (roll.cost_per_sqft || 0)) / 144,
+      0
+    ),
   }
 
-  const htmlContent = buildHtmlContent(reportData, periodLabel, startDate, endDate)
-  await exportPdfService.generatePDFReport(report.name, htmlContent)
+  const doc = buildAnalyticsReportPdf({
+    reportName: report.name,
+    periodLabel,
+    startDate,
+    endDate,
+    summary,
+    materialBreakdown,
+    // Cap at 20 rows so the recent-cuts table stays readable; future
+    // templates can pass full slices if they need more.
+    recentCuts: cuts.slice(0, 20),
+    organizationPreferences,
+  })
+
+  const ts = format(new Date(), "yyyy-MM-dd_HHmm")
+  const slug = report.name.replace(/[^A-Za-z0-9]+/g, "-").toLowerCase()
+  doc.save(`${slug}_${reportPeriod}_${ts}.pdf`)
 
   toast.success(`${periodLabel} ${report.name} generated successfully`)
 }

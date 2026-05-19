@@ -29,6 +29,7 @@ CREATE INDEX idx_subscriptions_tenant_id     ON subscriptions(tenant_id);
 CREATE INDEX idx_subscriptions_plan_id       ON subscriptions(plan_id);
 CREATE INDEX idx_subscriptions_stripe_sub_id ON subscriptions(stripe_subscription_id)
   WHERE stripe_subscription_id IS NOT NULL;
+CREATE INDEX idx_subscriptions_status        ON subscriptions(status);
 
 -- profiles
 CREATE INDEX idx_profiles_email ON profiles(email) WHERE email IS NOT NULL;
@@ -38,10 +39,19 @@ CREATE INDEX idx_profiles_platform_admin ON profiles(id) WHERE is_platform_admin
 -- (tenant_id, profile_id) is UNIQUE — covers tenant_id-leading lookups.
 -- Need the reverse for "list tenants this user belongs to":
 CREATE INDEX idx_memberships_profile_id ON memberships(profile_id);
+-- Seat-counting reads from the billing UI filter by status:
+CREATE INDEX idx_memberships_active_tenant
+  ON memberships(tenant_id, status)
+  WHERE status = 'active' AND deleted_at IS NULL;
 
 -- persons
 CREATE INDEX idx_persons_tenant_id  ON persons(tenant_id);
 CREATE INDEX idx_persons_profile_id ON persons(profile_id) WHERE profile_id IS NOT NULL;
+
+-- stripe_events (service-role writes only; reads are for the diag dashboard)
+CREATE INDEX idx_stripe_events_type        ON stripe_events(type);
+CREATE INDEX idx_stripe_events_status      ON stripe_events(status);
+CREATE INDEX idx_stripe_events_received_at ON stripe_events(received_at DESC);
 
 
 -- ─── Inventory (file 2) ────────────────────────────────────────────────────

@@ -12,12 +12,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/app/components/ui/table"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import {
+  formatAreaSqft,
+  formatDimensionsInches,
+} from "@/src/application/preferences/user-unit-display"
 
 interface RecentUsageTableProps {
   data: CutHistory[]
 }
 
 export function RecentUsageTable({ data }: RecentUsageTableProps) {
+  const organizationPreferences = useOrganizationPreferences()
   return (
     <Card>
       <CardHeader>
@@ -44,12 +50,17 @@ export function RecentUsageTable({ data }: RecentUsageTableProps) {
                     {format(new Date(cut.cut_date), "MMM d, HH:mm")}
                   </TableCell>
                   <TableCell>{cut.stock_label || "Unknown"}</TableCell>
-                  <TableCell className="font-mono">
-                    {cut.cut_width}&quot; × {cut.cut_length}&quot;
+                  <TableCell className="font-mono tabular-nums">
+                    {formatDimensionsInches(
+                      [cut.cut_width, cut.cut_length],
+                      organizationPreferences
+                    )}
                   </TableCell>
                   <TableCell className="text-center">{cut.cut_amount}</TableCell>
-                  <TableCell className="font-mono">
-                    {cut.material_used_sqft.toFixed(2)} sq ft
+                  <TableCell className="font-mono tabular-nums">
+                    {formatAreaSqft(cut.material_used_sqft, organizationPreferences, {
+                      precision: 2,
+                    })}
                   </TableCell>
                   <TableCell className="font-mono">{Math.round(cut.fab_score * 100)}%</TableCell>
                 </TableRow>

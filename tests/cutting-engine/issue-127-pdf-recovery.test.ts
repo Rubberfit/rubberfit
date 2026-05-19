@@ -29,10 +29,7 @@ import { describe, expect, it } from "vitest"
 
 import { canViewPdf } from "@/app/dashboard/history/_components/use-cut-history"
 import { generateCutPdf } from "@/app/dashboard/cutting-engine/_components/cut-history-pdf"
-import {
-  buildCutPdfDataFromRow,
-  extractAutoLayouts,
-} from "@/app/api/_lib/cut-pdf-server"
+import { buildCutPdfDataFromRow, extractAutoLayouts } from "@/app/api/_lib/cut-pdf-server"
 import type { LayoutModel } from "@/app/dashboard/cutting-engine/_components/layout-model"
 import type { CutHistory } from "@/src/infrastructure/models/supabase"
 
@@ -369,6 +366,28 @@ describe("issue #127 — PDF button always renders for saved cuts", () => {
       // Multiple segments + many parts → output meaningfully larger than the
       // single-strip baseline (~6KB for the K layout vs ~3KB for a tiny one).
       expect(blob.size).toBeGreaterThan(4096)
+    })
+
+    // PR 2e contract: passing org-level date prefs through to the PDF
+    // builder doesn't throw and produces a valid PDF. Mirrors the PR 2d
+    // unit-prefs smoke; the actual rendered date string isn't asserted
+    // (jsPDF text is opaque to the test-side spy under happy-dom/Node),
+    // but the helper would surface a thrown formatter on bad inputs.
+    it("M. generateCutPdf accepts non-default date prefs without throwing", async () => {
+      const layouts = [makeLayout()]
+      const cut = makeCut({ part_selected_label: ['24" × 12"'] })
+      const data = buildCutPdfDataFromRow(cut, layouts, {
+        unitSystem: "metric",
+        dateFormat: "dd/MM/yyyy",
+        timeZone: "Europe/London",
+        locale: "en-US",
+      })
+
+      const blob = await generateCutPdf({ svgElements: [], layouts, data })
+
+      expect(blob).toBeInstanceOf(Blob)
+      expect(blob.size).toBeGreaterThan(1024)
+      expect(blob.type).toBe("application/pdf")
     })
 
     it("L. multi-roll output with one long + one normal roll renders without throwing", async () => {

@@ -99,6 +99,10 @@ ALTER TABLE profiles            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE memberships         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_preferences    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE persons             ENABLE ROW LEVEL SECURITY;
+-- stripe_events: RLS enabled with NO policies = service-role writes only.
+-- The Stripe webhook handler uses the service-role client; end-users
+-- never read or write Stripe events.
+ALTER TABLE stripe_events       ENABLE ROW LEVEL SECURITY;
 
 -- Inventory (file 2)
 ALTER TABLE material_types          ENABLE ROW LEVEL SECURITY;

@@ -168,7 +168,10 @@ describe("Inventory hub page (Phase 3 PR 3a)", () => {
   it("renders the four StatCard hero metrics by label", async () => {
     render(<InventoryPage />)
     expect(await screen.findByText("Total active rolls")).not.toBeNull()
-    expect(screen.getByText("Total sqft")).not.toBeNull()
+    // PR 2d: label now uses getAreaUnitLabel — 'Total sq ft' (with space)
+    // for imperial, 'Total m²' for metric. The test provider defaults to
+    // imperial via DEFAULT_ORGANIZATION_PREFERENCES.
+    expect(screen.getByText("Total sq ft")).not.toBeNull()
     expect(screen.getByText("Low-stock count")).not.toBeNull()
     expect(screen.getByText("Total value")).not.toBeNull()
   })

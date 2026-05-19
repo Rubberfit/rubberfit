@@ -135,6 +135,23 @@
   --popover: #ffffff;
   --popover-foreground: #14171b;
 
+  /* Marketing-site brand tokens — mirrored here so Kimi-spec
+     components transcribed verbatim resolve in the dashboard. */
+  --color-canvas: #f6f5f2;
+  --color-surface: #eceae4;
+  --color-surface-raised: #ffffff;
+  --color-graphite: #14171b;
+  --color-ink: #14171b;
+  --color-ink-soft: #4a525c;
+  --color-ink-faint: #8a8f97;
+  --color-rule: #c4c2bb;
+  --color-rule-strong: #8e8d85;
+  --color-blueprint: #2b66c2;
+  --color-signal: #ee5a24;
+  --color-signal-deep: #c54214;
+  --color-signal-glow: rgba(238, 90, 36, 0.18);
+  --color-tape: #f6c945;
+
   --primary: #ee5a24;
   /* Graphite-on-orange (4.62:1) — passes WCAG AA. White-on-orange
    * is 3.45:1 which fails AA for the 11px mono caps the Quick
@@ -247,18 +264,29 @@
      "shop floor at night" treatment in `.dark` below. */
   --svg-page-bg: #f1f5f9;
   --svg-grid: rgba(203, 213, 225, 0.4);
-  --svg-sheet-base: #a8a095;
+  --svg-sheet-base: #7a7369;
   --svg-bevel-highlight: rgba(255, 255, 255, 0.35);
   --svg-bevel-shadow: rgba(0, 0, 0, 0.15);
   --svg-vignette-end: rgba(0, 0, 0, 0.2);
   --svg-dot-grid: rgba(0, 0, 0, 0.08);
-  --svg-part-fill: #64748b;
-  --svg-part-stroke: #334155;
+  --svg-part-fill: #cbd5e1;
+  --svg-part-stroke: #0f172a;
   --svg-part-shadow: rgba(0, 0, 0, 0.12);
-  --svg-scrap-base: #fee2e2;
-  --svg-scrap-stripe: rgba(220, 38, 38, 0.55);
-  --svg-offcut-fill: #e5dbc9;
+  --svg-part-hover-shadow: rgba(0, 0, 0, 0.2);
+  --svg-part-selected-shadow: rgba(0, 0, 0, 0.35);
+  --svg-part-selected-stroke: #0f766e;
+  --svg-part-focus-stroke: #14b8a6;
+  --svg-scrap-base: #fecaca;
+  --svg-scrap-stripe: rgba(153, 27, 27, 0.85);
+  --svg-offcut-fill: #faf6ed;
+  --svg-offcut-pinstripe: rgba(70, 50, 30, 0.55);
   --svg-offcut-border: rgba(15, 23, 42, 0.7);
+  /* Phase 5 PR 7 — error state. Borrows the scrap-red palette but
+     keeps a distinct token name so a future palette tweak can
+     differentiate "the operator broke this" (error) from "Rust
+     flagged this region as waste" (scrap) without coupling them. */
+  --svg-error-fill: #fef2f2;
+  --svg-error-stroke: #b91c1c;
 }
 
 /* ============================================================
@@ -271,6 +299,22 @@
   --card-foreground: #f6f5f2;
   --popover: #14171b;
   --popover-foreground: #f6f5f2;
+
+  /* Marketing-site brand tokens — dark-mode variants */
+  --color-canvas: #0f1216;
+  --color-surface: #14171b;
+  --color-surface-raised: #1a1d22;
+  --color-graphite: #f6f5f2;
+  --color-ink: #f6f5f2;
+  --color-ink-soft: #b8bcc2;
+  --color-ink-faint: #8a8f97;
+  --color-rule: rgba(246, 245, 242, 0.12);
+  --color-rule-strong: rgba(246, 245, 242, 0.24);
+  --color-blueprint: #5a8de0;
+  --color-signal: #ee5a24;
+  --color-signal-deep: #c54214;
+  --color-signal-glow: rgba(238, 90, 36, 0.24);
+  --color-tape: #f6c945;
 
   --primary: #ee5a24;
   --primary-foreground: #0f1216;
@@ -376,18 +420,67 @@
      dashed boundary. */
   --svg-page-bg: #0c0a09;
   --svg-grid: rgba(148, 163, 184, 0.12);
-  --svg-sheet-base: #1c1917;
+  --svg-sheet-base: #655c53;
   --svg-bevel-highlight: rgba(0, 0, 0, 0.4);
   --svg-bevel-shadow: rgba(255, 255, 255, 0.08);
   --svg-vignette-end: rgba(255, 255, 255, 0.06);
   --svg-dot-grid: rgba(255, 255, 255, 0.1);
   --svg-part-fill: #94a3b8;
-  --svg-part-stroke: #64748b;
+  --svg-part-stroke: #334155;
   --svg-part-shadow: rgba(255, 255, 255, 0.08);
-  --svg-scrap-base: #450a0a;
-  --svg-scrap-stripe: rgba(220, 38, 38, 0.65);
-  --svg-offcut-fill: #292524;
-  --svg-offcut-border: rgba(214, 211, 209, 0.7);
+  --svg-part-hover-shadow: rgba(255, 255, 255, 0.2);
+  --svg-part-selected-shadow: rgba(255, 255, 255, 0.5);
+  --svg-part-selected-stroke: #2dd4bf;
+  --svg-part-focus-stroke: #e8ddd0;
+  --svg-scrap-base: #e8a0a0;
+  --svg-scrap-stripe: #734b4b;
+  --svg-offcut-fill: #d4b896;
+  --svg-offcut-pinstripe: rgba(50, 35, 20, 0.6);
+  --svg-offcut-border: rgba(15, 23, 42, 0.7);
+  --svg-error-fill: #450a0a;
+  --svg-error-stroke: #dc2626;
+}
+
+/* Phase 5 PR 7 — Loading-state band-scan keyframes. The element
+   sets `--band-scan-end: ${vh - 4}px` so the dynamic SVG-viewBox
+   end position stays in the component, while the keyframe definition
+   itself satisfies the "Tailwind utilities only — no inline styles
+   except for dynamic computed values" project rule. Referenced via
+   `animate-nesting-band-scan` (Tailwind v4 picks up the keyframe
+   name automatically). */
+@keyframes nesting-band-scan {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(var(--band-scan-end, 0));
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+}
+.animate-nesting-band-scan {
+  animation: nesting-band-scan 1.6s ease-in-out infinite;
+}
+
+/* Phase 5 PR 4 — Auto-nest part hover elevation.
+   CSS :hover (vs React state) so 100+ parts don't each trigger a
+   state update on mouseenter/leave. The selected-part branch keeps
+   its own elevated shadow set on the inline style; hover only fires
+   on parts whose data-selected="false". */
+g[data-part-id]:hover .part-shape[data-selected="false"] {
+  filter: drop-shadow(0 2px 6px var(--svg-part-hover-shadow));
+}
+@media (prefers-reduced-motion: reduce) {
+  g[data-part-id]:hover .part-shape[data-selected="false"] {
+    filter: drop-shadow(1px 2px 2px var(--svg-part-shadow));
+  }
 }
 
 /* Reduced-motion: kill entrance / ambient animations globally. */
