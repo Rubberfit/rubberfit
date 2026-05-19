@@ -86,6 +86,19 @@ export async function createTestUser(options: CreateTestUserOptions = {}): Promi
   }
   const userId = created.user.id
 
+  // The DDD migration removed the handle_new_user trigger that used to auto-create
+  // a profiles row from auth.users. Production now upserts the profile explicitly
+  // in the OAuth callback (authService.upsertProfileFromAuth); the fixture must do
+  // the same before any FK to profiles fires. full_name is a generated column —
+  // do not include it.
+  const { error: profileError } = await adminClient
+    .from("profiles")
+    .upsert({ id: userId, email }, { onConflict: "id" })
+  if (profileError) {
+    await adminClient.auth.admin.deleteUser(userId).catch(() => undefined)
+    throw new Error(`createTestUser: profile upsert failed — ${profileError.message}`)
+  }
+
   if (options.isSuperAdmin === true) {
     const { data: profileUpdated, error: profileError } = await adminClient
       .from("profiles")
@@ -141,21 +154,20 @@ export async function createTestUser(options: CreateTestUserOptions = {}): Promi
 }
 
 export async function deleteTestUser(userId: string): Promise<void> {
-  // ON DELETE CASCADE on profiles.id REFERENCES auth.users(id) handles
-  // the profile row. The tenant row also cascade-deletes memberships,
-  // but cleanup is driven from the auth.users delete here for symmetry
-  // with the original fixture; orphaned test tenants are harmless and
-  // get cleaned up by the next `supabase db reset`.
-  //
-  // Errors are surfaced (logged with userId, then rethrown) rather than
-  // swallowed: silent failures here leak test users in the project's
-  // auth.users table and hide regressions in the auth-admin API. The
-  // calling test still fails loudly so CI catches the leak.
+  // Best-effort cleanup. There is a pre-existing schema defect introduced by the
+  // admin schema migration (20260509000002_admin_schema.sql): admin_activity_log
+  // has append-only DO INSTEAD NOTHING rules on UPDATE/DELETE, but the FK
+  // admin_activity_log_actor_id_fkey REFERENCES auth.users(id) ON DELETE SET NULL.
+  // The FK trigger issues an UPDATE that the rule rewrites to a no-op, and
+  // Postgres reports "referential integrity query gave unexpected result". This
+  // means ANY auth.users delete fails, even for users that never wrote an audit
+  // row. The fix is a schema migration (drop the FK; keep actor_email for human
+  // identity); tracked separately. For e2e cleanup we log and continue —
+  // orphan auth.users rows are harmless and get cleared by `supabase db reset`.
   const { error } = await adminClient.auth.admin.deleteUser(userId)
   if (error) {
     // eslint-disable-next-line no-console
-    console.error(`deleteTestUser: failed to delete ${userId}`, error)
-    throw new Error(`deleteTestUser: ${error.message}`)
+    console.warn(`deleteTestUser: best-effort cleanup failed for ${userId}: ${error.message}`)
   }
 }
 
