@@ -15,6 +15,34 @@ Both surfaces share the same packing engine (`pack-cli`) and waste/offcut semant
 
 User selects a part type (preset or custom), enters dimensions, sets quantity, and sees a real-time Konva preview of the nested layout on the selected stock. Supports rectangles, circles, cylinders, cones, trapezoids, and annular sectors. The Pack call resolves `IPackingService` from the TSyringe container; the Rust `pack-cli` binary runs the full S2.5 stack (FFD + 2D grid warm-start + sparrow GLS + cross-bin swap). See `engine.ltx` for the algorithm writeup.
 
+## CAD Import (ARC-41 DXF + ARC-93 SVG)
+
+Operators can upload `.dxf` or `.svg` files to import arbitrary-geometry parts (gaskets, custom seals, multi-loop profiles). Both paths land in `src/application/cad/`:
+
+| Format | Entry parser                                                                 | Coverage                                                                                                                                                                                                                                                                                                                                                  |
+| ------ | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DXF    | [`parse-dxf.ts`](../../../src/application/cad/parse-dxf.ts) (ARC-41 PR1+PR2) | Single + multi-loop, LWPOLYLINE/POLYLINE/LINE/ARC/CIRCLE/SPLINE/ELLIPSE, bulged polylines, holes, `$INSUNITS` auto-detect (mm/inch).                                                                                                                                                                                                                      |
+| SVG    | [`parse-svg.ts`](../../../src/application/cad/parse-svg.ts) (ARC-93)         | Cubic + quadratic Béziers, arcs (via `unarc()`), nested `<g>` transforms, multi-loop, holes. Unsupported elements (`<use>`, `<defs>`, `<text>`, `<image>`, gradients, masks, clipPaths, patterns, filters) collapse into `UnsupportedSvgEntity` with a reason code. Y is flipped at parse-time (Y → -Y) so emitted vertices match DXF math-coords (Y up). |
+
+**Common pipeline** (both formats feed the same downstream stages):
+
+```
+File → parse-{dxf,svg}.ts (raw entity AST)
+  → tessellate-curves.ts (Bézier/arc/spline → polyline at chord-error tolerance)
+  → connect-loops.ts (endpoint-snap at 1e-4)
+  → group-parts.ts (containment-based hole assignment, outer + holes per part)
+  → sanitize-polygon-with-holes.ts (winding-order normalization, degenerate-segment drop)
+  → PolygonWithHoles[] (DDD canonical shape; consumed by IPackingService)
+```
+
+`detect-svg-units.ts` + `detect-units.ts` resolve user-units to mm/inch; operator-confirmed via the review dialog when units can't be inferred.
+
+**UI entry:** [`_components/svg-review-dialog.tsx`](./_components/svg-review-dialog.tsx) renders the parsed loops over a preview canvas before the user confirms import. Unsupported-entity warnings are aggregated in [`_components/cad-warning-copy.ts`](./_components/cad-warning-copy.ts).
+
+**Tests:** `tests/cad/` (parser-level — `parse-dxf`, `parse-svg`, `connect-loops`, `group-parts`, `tessellate-curves`, `detect-svg-units`, `detect-units`, `svg-to-loops`) + `tests/cutting-engine/cut-list-upload-svg.test.tsx` + `tests/cutting-engine/svg-contrast.test.ts` (UI smoke).
+
+The legacy `nesting/` TS NFP path is still imported by the cutting-engine UI for shape _previews_ (small visual diagrams alongside cards), but it is no longer a packing path — every Pack call goes through Rust.
+
 ## Architecture
 
 ```
@@ -69,16 +97,16 @@ post-pack layout-shaping utilities.
 
 These are now post-pack layout shapers and visualizer helpers, not packers. The actual packing happens in the Rust `rf-layout` crate via `pack-cli` (or the Vercel in-process Rust function).
 
-| File                            | Purpose                                                                                                                                       |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `nesting-layout-utils.ts`       | Core layout math — grid calculation, scaling, formatting helpers for the visualizer.                                                          |
-| `nesting-packing-utils.ts`      | Post-pack helpers (shelf-style row grouping, centered-column layout) used by the visualizer to organise preview output before drawing.        |
-| `nesting-offcut-utils.ts`       | Offcut band classification, intra-blank waste, placement bounds helpers.                                                                      |
-| `nesting-preview-builders.ts`   | High-level preview builders — waste analysis, fabrication scoring, strategy comparison.                                                       |
+| File                             | Purpose                                                                                                                                       |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nesting-layout-utils.ts`        | Core layout math — grid calculation, scaling, formatting helpers for the visualizer.                                                          |
+| `nesting-packing-utils.ts`       | Post-pack helpers (shelf-style row grouping, centered-column layout) used by the visualizer to organise preview output before drawing.        |
+| `nesting-offcut-utils.ts`        | Offcut band classification, intra-blank waste, placement bounds helpers.                                                                      |
+| `nesting-preview-builders.ts`    | High-level preview builders — waste analysis, fabrication scoring, strategy comparison.                                                       |
 | `pack-result-to-layout-model.ts` | Normaliser: Rust `PackResult` → `LayoutModel[]` consumed by the visualizer and Konva renderer.                                                |
-| `auto-fill-bin-allocator.ts`    | Multi-sheet auto-fill estimator (`SAFETY_FACTOR ≈ 1.54×` over total part area, capped at `MAX_SHEETS = 50`) feeding the bin list into `pack`. |
-| `bin-allocation-strategy.ts`    | Auto-boost: silently re-packs against more bins on overflow until everything fits or the cap is reached.                                      |
-| `template-to-part.ts`           | Converts `SimplePartSpec[]` (preset / custom UI) into the canonical `PackRequest` `Part[]`.                                                   |
+| `auto-fill-bin-allocator.ts`     | Multi-sheet auto-fill estimator (`SAFETY_FACTOR ≈ 1.54×` over total part area, capped at `MAX_SHEETS = 50`) feeding the bin list into `pack`. |
+| `bin-allocation-strategy.ts`     | Auto-boost: silently re-packs against more bins on overflow until everything fits or the cap is reached.                                      |
+| `template-to-part.ts`            | Converts `SimplePartSpec[]` (preset / custom UI) into the canonical `PackRequest` `Part[]`.                                                   |
 
 ### SVG Rendering
 
@@ -91,21 +119,21 @@ These are now post-pack layout shapers and visualizer helpers, not packers. The 
 
 ### PDF Generation
 
-| File                          | Purpose                                                                                                                                                                                                                       |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cut-history-pdf.ts`          | Cut report PDF builder — branded header, summary cards, cut legend, per-roll vector layout diagrams (true-aspect, 45° hatched regions, dimension arrows), reusable-offcut summary, metrics table, adhesives table, footer. The "PDF first, INSERT second" save flow runs end-to-end in the **browser**: this module's `buildAndUploadCutPdf` builds the blob and delegates the upload to `cutPdfBrowserStorage.ts::uploadCutPdfFromBrowser`, which writes directly to `cut-history-pdfs/<userId>/<cutId>.pdf` with the user's session (storage RLS scopes the folder to `auth.uid()`). The browser then calls the `saveCut` server action with `{ cutId, pdfUploaded: true, ... }`. The server action ignores any client-supplied URL — it constructs the authoritative `pdf_url` from `actor.id` + `cutId` and writes that onto the cut_history INSERT (cut_history is write-once; no UPDATE policy). On INSERT failure the action runs `safeRemoveOrphanedCutPdf`, which checks for an existing row before deleting so a duplicate-submit race can't drop a referenced file. |
-| `cut-history-pdf-offcut.ts`   | Pure helpers for the offcut summary section (issue #128): `classifyOffcutType` (Piece ≥ 11.5"×12" / Strip ≥ 6"×24" / null) and `buildOffcutSummary` (one row per individually-reusable offcut, globally numbered across rolls). Filters out CC sub-rectangles that ride along in `layout.offcuts` so only operator-actionable pieces surface. |
-| `arc-anchor-logo.ts`          | Base64-encoded brand logo embedded into the PDF header.                                                                                                                                                                       |
+| File                        | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `cut-history-pdf.ts`        | Cut report PDF builder — branded header, summary cards, cut legend, per-roll vector layout diagrams (true-aspect, 45° hatched regions, dimension arrows), reusable-offcut summary, metrics table, adhesives table, footer. The "PDF first, INSERT second" save flow runs end-to-end in the **browser**: this module's `buildAndUploadCutPdf` builds the blob and delegates the upload to `cutPdfBrowserStorage.ts::uploadCutPdfFromBrowser`, which writes directly to `cut-history-pdfs/<userId>/<cutId>.pdf` with the user's session (storage RLS scopes the folder to `auth.uid()`). The browser then calls the `saveCut` server action with `{ cutId, pdfUploaded: true, ... }`. The server action ignores any client-supplied URL — it constructs the authoritative `pdf_url` from `actor.id` + `cutId` and writes that onto the cut_history INSERT (cut_history is write-once; no UPDATE policy). On INSERT failure the action runs `safeRemoveOrphanedCutPdf`, which checks for an existing row before deleting so a duplicate-submit race can't drop a referenced file. |
+| `cut-history-pdf-offcut.ts` | Pure helpers for the offcut summary section (issue #128): `classifyOffcutType` (Piece ≥ 11.5"×12" / Strip ≥ 6"×24" / null) and `buildOffcutSummary` (one row per individually-reusable offcut, globally numbered across rolls). Filters out CC sub-rectangles that ride along in `layout.offcuts` so only operator-actionable pieces surface.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `arc-anchor-logo.ts`        | Base64-encoded brand logo embedded into the PDF header.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ### State & Hooks
 
-| File                      | Purpose                                                                                                                                                                                 |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `use-pack-job.ts`         | Owns the single `IPackingService.pack()` round-trip when the operator presses **Pack**. Gated by `usePackGate` (`idle` → `packing` → `done`); no live load on input change.             |
-| `_hooks/use-pack-gate.ts` | Three-state gate machine that keeps the Pack button explicit — no per-keystroke packing, minimum 450 ms loader window so the operation is perceivable.                                  |
-| `use-preset-state.ts`     | State management for preset selector — templates, custom sizes, per-card quantities.                                                                                                    |
-| `preset-template-data.ts` | Template definitions, part type options, category badges, custom draft types.                                                                                                           |
-| `preset-utils.ts`         | Template builder helpers — custom template creation, area calculation, draft conversion.                                                                                                |
+| File                      | Purpose                                                                                                                                                                     |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `use-pack-job.ts`         | Owns the single `IPackingService.pack()` round-trip when the operator presses **Pack**. Gated by `usePackGate` (`idle` → `packing` → `done`); no live load on input change. |
+| `_hooks/use-pack-gate.ts` | Three-state gate machine that keeps the Pack button explicit — no per-keystroke packing, minimum 450 ms loader window so the operation is perceivable.                      |
+| `use-preset-state.ts`     | State management for preset selector — templates, custom sizes, per-card quantities.                                                                                        |
+| `preset-template-data.ts` | Template definitions, part type options, category badges, custom draft types.                                                                                               |
+| `preset-utils.ts`         | Template builder helpers — custom template creation, area calculation, draft conversion.                                                                                    |
 
 ### Free-roam (Manual CAD Placement)
 
