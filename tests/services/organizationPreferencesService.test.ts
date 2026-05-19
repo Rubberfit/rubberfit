@@ -1,7 +1,9 @@
 /**
  * Service-level coverage for OrganizationPreferencesService.
  *
- * Pins:
+ * Service retargeted at `tenant_settings` post-DDD merge; the row
+ * shape uses `tenant_id` and `timezone` (no underscore), and the
+ * not-found error references `tenant_settings`. Pins:
  *  - getForOrganization round-trips the row through snake→camel mapper.
  *  - getForOrganization throws when no row exists (provision trigger
  *    should auto-insert one on org create, but failures must be visible).
@@ -24,9 +26,9 @@ import { OrganizationPreferencesService } from "@/src/infrastructure/services/or
 const ORG_ID = "11111111-1111-1111-1111-111111111111"
 
 const ROW = {
-  organization_id: ORG_ID,
+  tenant_id: ORG_ID,
   default_currency: "USD",
-  time_zone: "America/Chicago",
+  timezone: "America/Chicago",
   date_format: "MM/dd/yyyy",
   unit_system: "imperial",
   low_stock_threshold_sqft: "50.00",
@@ -52,7 +54,7 @@ describe("OrganizationPreferencesService", () => {
     it("returns the row mapped into the canonical camelCase shape", async () => {
       getDatabaseClient.mockResolvedValueOnce(
         makeFakeClient({
-          tables: { organization_preferences: { select: { data: ROW, error: null } } },
+          tables: { tenant_settings: { select: { data: ROW, error: null } } },
         })
       )
       const svc = new OrganizationPreferencesService()
@@ -71,7 +73,7 @@ describe("OrganizationPreferencesService", () => {
       getDatabaseClient.mockResolvedValueOnce(
         makeFakeClient({
           tables: {
-            organization_preferences: {
+            tenant_settings: {
               select: { data: { ...ROW, low_stock_threshold_sqft: "49.73" }, error: null },
             },
           },
@@ -86,7 +88,7 @@ describe("OrganizationPreferencesService", () => {
       getDatabaseClient.mockResolvedValueOnce(
         makeFakeClient({
           tables: {
-            organization_preferences: {
+            tenant_settings: {
               select: { data: { ...ROW, low_stock_threshold_sqft: "NaN" }, error: null },
             },
           },
@@ -99,13 +101,11 @@ describe("OrganizationPreferencesService", () => {
     it("throws when no row exists for the org", async () => {
       getDatabaseClient.mockResolvedValueOnce(
         makeFakeClient({
-          tables: { organization_preferences: { select: { data: null, error: null } } },
+          tables: { tenant_settings: { select: { data: null, error: null } } },
         })
       )
       const svc = new OrganizationPreferencesService()
-      await expect(svc.getForOrganization(ORG_ID)).rejects.toThrow(
-        /No organization_preferences row/
-      )
+      await expect(svc.getForOrganization(ORG_ID)).rejects.toThrow(/No tenant_settings row/)
     })
   })
 
@@ -113,7 +113,7 @@ describe("OrganizationPreferencesService", () => {
     it("maps a partial update through and returns the canonical row", async () => {
       getDatabaseClient.mockResolvedValueOnce(
         makeFakeClient({
-          tables: { organization_preferences: { update: { data: UPDATED_ROW, error: null } } },
+          tables: { tenant_settings: { update: { data: UPDATED_ROW, error: null } } },
         })
       )
       const svc = new OrganizationPreferencesService()
@@ -131,7 +131,7 @@ describe("OrganizationPreferencesService", () => {
     it("throws when RLS blocks the write and the chain returns no row", async () => {
       getDatabaseClient.mockResolvedValueOnce(
         makeFakeClient({
-          tables: { organization_preferences: { update: { data: null, error: null } } },
+          tables: { tenant_settings: { update: { data: null, error: null } } },
         })
       )
       const svc = new OrganizationPreferencesService()
