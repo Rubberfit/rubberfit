@@ -1,0 +1,83 @@
+import { describe, expect, it } from "vitest"
+import { detectSvgUnits } from "@/src/application/cad/detect-svg-units"
+
+describe("detectSvgUnits", () => {
+  it("returns mm + scale 1 for width='100mm' with matching viewBox", () => {
+    const result = detectSvgUnits({ width: "100mm", height: "50mm", viewBox: "0 0 100 50" })
+    expect(result.units).toBe("mm")
+    expect(result.userUnitScale).toBeCloseTo(1, 9)
+  })
+
+  it("returns inch + scale 1 for width='4in'", () => {
+    const result = detectSvgUnits({ width: "4in", height: "4in", viewBox: "0 0 4 4" })
+    expect(result.units).toBe("inch")
+    expect(result.userUnitScale).toBeCloseTo(1, 9)
+  })
+
+  it("converts cm to mm and computes scale relative to viewBox", () => {
+    // 10cm = 100mm physical; viewBox width 200 user units -> 0.5 mm/user-unit.
+    const result = detectSvgUnits({ width: "10cm", height: "10cm", viewBox: "0 0 200 200" })
+    expect(result.units).toBe("mm")
+    expect(result.userUnitScale).toBeCloseTo(0.5, 9)
+  })
+
+  it("returns undefined for unit-less width (operator picks)", () => {
+    const result = detectSvgUnits({ width: "800", height: "600", viewBox: "0 0 800 600" })
+    expect(result.units).toBeUndefined()
+    expect(result.userUnitScale).toBe(1)
+  })
+
+  it("returns undefined for px-suffixed width (ambiguous DPI)", () => {
+    const result = detectSvgUnits({ width: "800px", height: "600px", viewBox: "0 0 800 600" })
+    expect(result.units).toBeUndefined()
+    expect(result.userUnitScale).toBe(1)
+  })
+
+  it("returns undefined for missing width", () => {
+    const result = detectSvgUnits({ viewBox: "0 0 200 200" })
+    expect(result.units).toBeUndefined()
+    expect(result.userUnitScale).toBe(1)
+  })
+
+  it("returns undefined for malformed width", () => {
+    const result = detectSvgUnits({ width: "100abc", height: "100mm" })
+    expect(result.units).toBeUndefined()
+    expect(result.userUnitScale).toBe(1)
+  })
+
+  it("derives scale when viewBox is absent — falls back to 1:1 in the unit space", () => {
+    const result = detectSvgUnits({ width: "100mm", height: "50mm" })
+    expect(result.units).toBe("mm")
+    expect(result.userUnitScale).toBeCloseTo(1, 9)
+  })
+
+  it("handles comma-separated viewBox", () => {
+    const result = detectSvgUnits({ width: "100mm", viewBox: "0,0,50,50" })
+    expect(result.units).toBe("mm")
+    expect(result.userUnitScale).toBeCloseTo(2, 9)
+  })
+
+  it("ignores a malformed viewBox with fewer than four components", () => {
+    // Three-token viewBox is malformed per SVG spec — fail closed rather
+    // than guess at the missing height.
+    const result = detectSvgUnits({ width: "100mm", viewBox: "0 0 50" })
+    expect(result.units).toBe("mm")
+    // viewBox is rejected -> scale derived from width alone (1:1 in mm).
+    expect(result.userUnitScale).toBeCloseTo(1, 9)
+  })
+
+  it("returns undefined for negative width (would otherwise flip geometry)", () => {
+    // A negative `userUnitScale` would silently mirror every vertex; the
+    // dialog should prompt for a unit instead.
+    const result = detectSvgUnits({ width: "-100mm", viewBox: "0 0 100 100" })
+    expect(result.units).toBeUndefined()
+    expect(result.userUnitScale).toBe(1)
+  })
+
+  it("returns undefined for zero width (would otherwise collapse to origin)", () => {
+    // A zero `userUnitScale` would collapse every vertex to (0,0).
+    const result = detectSvgUnits({ width: "0mm", viewBox: "0 0 100 100" })
+    expect(result.units).toBeUndefined()
+    expect(result.userUnitScale).toBe(1)
+  })
+})

@@ -18,7 +18,9 @@
 //   - DXF bulge convention: Autodesk DXF reference + Lee Mac AutoLISP source
 //
 // This file is intentionally I/O-free and DXF-type-free aside from `Point2D`.
-// It will be reused unchanged by the PR B SVG importer.
+// PR B (SVG importer) reuses it and extends with `tessellateBezier` /
+// `tessellateQuadratic` for cubic + quadratic Béziers — both layered on the
+// same `adaptiveSubdivide` primitive used by ARC / CIRCLE / ELLIPSE / SPLINE.
 
 import type { Point2D } from "./dxf-types"
 
@@ -252,6 +254,95 @@ export function tessellateBulge(
   })
   // Open segment — caller appends `b` (or the next polyline vertex).
   return adaptiveSubdivide(curve, 0, 1, chordDeviation)
+}
+
+export interface CubicBezier {
+  p0: Point2D
+  p1: Point2D
+  p2: Point2D
+  p3: Point2D
+}
+
+/**
+ * Cubic Bézier curve via Bernstein-basis evaluation + chord-deviation
+ * subdivide. Used for SVG `C` / `c` commands and `A` commands after
+ * `svgpath`'s `unarc()` expansion.
+ *
+ * Bernstein cubic: B(t) = (1−t)^3 P0 + 3(1−t)^2 t P1 + 3(1−t) t^2 P2 + t^3 P3.
+ *
+ * Open curve: emits the leading endpoint plus midpoints, drops the trailing
+ * P3 (the caller chains the next segment whose leading endpoint IS P3).
+ */
+export function tessellateBezier(curve: CubicBezier, options: TessellationOptions = {}): Point2D[] {
+  const { p0, p1, p2, p3 } = curve
+  if (
+    !Number.isFinite(p0.x) ||
+    !Number.isFinite(p0.y) ||
+    !Number.isFinite(p1.x) ||
+    !Number.isFinite(p1.y) ||
+    !Number.isFinite(p2.x) ||
+    !Number.isFinite(p2.y) ||
+    !Number.isFinite(p3.x) ||
+    !Number.isFinite(p3.y)
+  ) {
+    return []
+  }
+  const chordDeviation = options.chordDeviation ?? DEFAULT_CHORD_DEVIATION
+  const parametric: Parametric = (t) => {
+    const u = 1 - t
+    const a = u * u * u
+    const b = 3 * u * u * t
+    const c = 3 * u * t * t
+    const d = t * t * t
+    return {
+      x: a * p0.x + b * p1.x + c * p2.x + d * p3.x,
+      y: a * p0.y + b * p1.y + c * p2.y + d * p3.y,
+    }
+  }
+  return adaptiveSubdivide(parametric, 0, 1, chordDeviation)
+}
+
+export interface QuadraticBezier {
+  p0: Point2D
+  p1: Point2D
+  p2: Point2D
+}
+
+/**
+ * Quadratic Bézier curve via Bernstein-basis evaluation + chord-deviation
+ * subdivide. Used for SVG `Q` / `q` commands (and `T` / `t` after `unshort()`).
+ *
+ * Bernstein quadratic: B(t) = (1−t)^2 P0 + 2(1−t) t P1 + t^2 P2.
+ *
+ * Open curve emit contract matches `tessellateBezier`.
+ */
+export function tessellateQuadratic(
+  curve: QuadraticBezier,
+  options: TessellationOptions = {}
+): Point2D[] {
+  const { p0, p1, p2 } = curve
+  if (
+    !Number.isFinite(p0.x) ||
+    !Number.isFinite(p0.y) ||
+    !Number.isFinite(p1.x) ||
+    !Number.isFinite(p1.y) ||
+    !Number.isFinite(p2.x) ||
+    !Number.isFinite(p2.y)
+  ) {
+    return []
+  }
+  const chordDeviation = options.chordDeviation ?? DEFAULT_CHORD_DEVIATION
+  const parametric: Parametric = (t) => {
+    const u = 1 - t
+    const a = u * u
+    const b = 2 * u * t
+    const c = t * t
+    return {
+      x: a * p0.x + b * p1.x + c * p2.x,
+      y: a * p0.y + b * p1.y + c * p2.y,
+    }
+  }
+  return adaptiveSubdivide(parametric, 0, 1, chordDeviation)
 }
 
 export interface SplineInput {

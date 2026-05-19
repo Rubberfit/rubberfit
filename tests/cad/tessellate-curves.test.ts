@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest"
 import {
   tessellateArc,
+  tessellateBezier,
   tessellateBulge,
   tessellateCircle,
   tessellateEllipse,
+  tessellateQuadratic,
   tessellateSpline,
 } from "@/src/application/cad/tessellate-curves"
 
@@ -433,5 +435,120 @@ describe("tessellateSpline", () => {
       expect(Number.isFinite(v.x)).toBe(true)
       expect(Number.isFinite(v.y)).toBe(true)
     }
+  })
+})
+
+describe("tessellateBezier (cubic)", () => {
+  it("collinear cubic (P0..P3 on a straight line) emits just the leading endpoint", () => {
+    const verts = tessellateBezier({
+      p0: { x: 0, y: 0 },
+      p1: { x: 1, y: 0 },
+      p2: { x: 2, y: 0 },
+      p3: { x: 3, y: 0 },
+    })
+    expect(verts).toEqual([{ x: 0, y: 0 }])
+  })
+
+  it("does NOT emit the trailing endpoint P3 — caller chains the next segment", () => {
+    const verts = tessellateBezier({
+      p0: { x: 0, y: 0 },
+      p1: { x: 0, y: 1 },
+      p2: { x: 1, y: 1 },
+      p3: { x: 1, y: 0 },
+    })
+    const last = verts[verts.length - 1]
+    expect(Math.hypot(last.x - 1, last.y - 0)).toBeGreaterThan(1e-6)
+  })
+
+  it("symmetric arch cubic (M 0,0 C 0,1 1,1 1,0) produces points above y=0", () => {
+    const verts = tessellateBezier({
+      p0: { x: 0, y: 0 },
+      p1: { x: 0, y: 1 },
+      p2: { x: 1, y: 1 },
+      p3: { x: 1, y: 0 },
+    })
+    expect(verts.length).toBeGreaterThan(2)
+    // Skip the leading endpoint which is on y=0; all interior samples must be above the chord.
+    for (let i = 1; i < verts.length; i++) {
+      expect(verts[i].y).toBeGreaterThan(0)
+    }
+  })
+
+  it("vertex count grows as chordDeviation shrinks (subdivision monotonicity)", () => {
+    const curve = {
+      p0: { x: 0, y: 0 },
+      p1: { x: 0, y: 1 },
+      p2: { x: 1, y: 1 },
+      p3: { x: 1, y: 0 },
+    }
+    const coarse = tessellateBezier(curve, { chordDeviation: 0.05 })
+    const fine = tessellateBezier(curve, { chordDeviation: 0.001 })
+    expect(fine.length).toBeGreaterThan(coarse.length)
+  })
+
+  it("non-finite control point returns empty array (no NaN poison)", () => {
+    const verts = tessellateBezier({
+      p0: { x: 0, y: 0 },
+      p1: { x: Number.NaN, y: 0 },
+      p2: { x: 1, y: 1 },
+      p3: { x: 1, y: 0 },
+    })
+    expect(verts).toEqual([])
+  })
+
+  it("degenerate cubic (all four points coincide) emits the single point", () => {
+    const verts = tessellateBezier({
+      p0: { x: 5, y: 5 },
+      p1: { x: 5, y: 5 },
+      p2: { x: 5, y: 5 },
+      p3: { x: 5, y: 5 },
+    })
+    expect(verts).toEqual([{ x: 5, y: 5 }])
+  })
+})
+
+describe("tessellateQuadratic", () => {
+  it("apex test: M 0,0 Q 0.5,1 1,0 — midpoint sample lies at y = 0.5 (Bernstein evaluation)", () => {
+    // B(0.5) = (1/4) P0 + (1/2) P1 + (1/4) P2 = (1/4)(0,0) + (1/2)(0.5,1) + (1/4)(1,0)
+    //        = (0.5, 0.5). The closest emitted vertex to t=0.5 should be near (0.5, 0.5).
+    const verts = tessellateQuadratic({
+      p0: { x: 0, y: 0 },
+      p1: { x: 0.5, y: 1 },
+      p2: { x: 1, y: 0 },
+    })
+    expect(verts.length).toBeGreaterThan(2)
+    const apex = verts.reduce((best, v) =>
+      Math.hypot(v.x - 0.5, v.y - 0.5) < Math.hypot(best.x - 0.5, best.y - 0.5) ? v : best
+    )
+    expect(Math.abs(apex.x - 0.5)).toBeLessThan(0.05)
+    expect(Math.abs(apex.y - 0.5)).toBeLessThan(0.05)
+  })
+
+  it("collinear quadratic emits just the leading endpoint", () => {
+    const verts = tessellateQuadratic({
+      p0: { x: 0, y: 0 },
+      p1: { x: 1, y: 0 },
+      p2: { x: 2, y: 0 },
+    })
+    expect(verts).toEqual([{ x: 0, y: 0 }])
+  })
+
+  it("does NOT emit the trailing endpoint P2", () => {
+    const verts = tessellateQuadratic({
+      p0: { x: 0, y: 0 },
+      p1: { x: 0.5, y: 1 },
+      p2: { x: 1, y: 0 },
+    })
+    const last = verts[verts.length - 1]
+    expect(Math.hypot(last.x - 1, last.y - 0)).toBeGreaterThan(1e-6)
+  })
+
+  it("non-finite control point returns empty array", () => {
+    const verts = tessellateQuadratic({
+      p0: { x: 0, y: 0 },
+      p1: { x: 0.5, y: Number.POSITIVE_INFINITY },
+      p2: { x: 1, y: 0 },
+    })
+    expect(verts).toEqual([])
   })
 })

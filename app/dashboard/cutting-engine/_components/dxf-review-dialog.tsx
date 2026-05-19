@@ -16,8 +16,8 @@ import type { DxfPartCandidate } from "@/src/application/cad/group-parts"
 import { sanitizePolygonWithHoles } from "@/src/application/cad/sanitize-polygon-with-holes"
 import {
   baseName,
-  buildWarnings,
-  type Bbox,
+  buildDxfWarnings,
+  type CadSourceType,
   CenterPreview,
   DimensionsLine,
   HoleCountChip,
@@ -25,9 +25,10 @@ import {
   PartListRail,
   PartNumberField,
   QuantityField,
+  SourceTypeChip,
   UnitPicker,
   WarningsBanner,
-} from "./dxf-review-dialog-parts"
+} from "./cad-review-dialog-parts"
 
 interface DxfReviewDialogProps {
   open: boolean
@@ -40,24 +41,27 @@ interface DxfReviewDialogProps {
   onCancel: () => void
 }
 
+const SOURCE_TYPE: CadSourceType = "dxf"
+
 /* ------------------------------------------------------------------ */
 /*  Mode renderers                                                     */
 /* ------------------------------------------------------------------ */
 
-function EmptyDxfDialog({
-  open,
-  sourceFile,
-  onCancel,
-}: {
+interface EmptyDxfDialogProps {
   open: boolean
   sourceFile: string
   onCancel: () => void
-}) {
+}
+
+function EmptyDxfDialog({ open, sourceFile, onCancel }: EmptyDxfDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Review DXF Import</DialogTitle>
+          <div className="flex items-center gap-2">
+            <DialogTitle>Review DXF Import</DialogTitle>
+            <SourceTypeChip type={SOURCE_TYPE} />
+          </div>
           <DialogDescription>{baseName(sourceFile)}</DialogDescription>
         </DialogHeader>
         <div className="py-12 text-center">
@@ -71,46 +75,6 @@ function EmptyDxfDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
-}
-
-interface ConfirmControlsProps {
-  units: UnitSystem | undefined
-  detectedUnits: UnitSystem | undefined
-  onUnitsChange: (next: UnitSystem) => void
-  bbox: Bbox | undefined
-  quantity: number
-  onQuantityChange: (next: number) => void
-  partNumber: string
-  partNumberPlaceholder: string
-  onPartNumberChange: (next: string) => void
-  idPrefix: string
-}
-
-function ConfirmControls({
-  units,
-  detectedUnits,
-  onUnitsChange,
-  bbox,
-  quantity,
-  onQuantityChange,
-  partNumber,
-  partNumberPlaceholder,
-  onPartNumberChange,
-  idPrefix,
-}: ConfirmControlsProps) {
-  return (
-    <>
-      <UnitPicker units={units} detectedUnits={detectedUnits} onChange={onUnitsChange} />
-      <DimensionsLine bbox={bbox} units={units} />
-      <QuantityField id={`${idPrefix}-qty`} value={quantity} onChange={onQuantityChange} />
-      <PartNumberField
-        id={`${idPrefix}-pn`}
-        value={partNumber}
-        placeholder={partNumberPlaceholder}
-        onChange={onPartNumberChange}
-      />
-    </>
   )
 }
 
@@ -155,7 +119,10 @@ function SinglePartDialog(props: SinglePartDialogProps) {
     <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Review DXF Import</DialogTitle>
+          <div className="flex items-center gap-2">
+            <DialogTitle>Review DXF Import</DialogTitle>
+            <SourceTypeChip type={SOURCE_TYPE} />
+          </div>
           <DialogDescription>{baseName(sourceFile)}</DialogDescription>
         </DialogHeader>
 
@@ -171,17 +138,19 @@ function SinglePartDialog(props: SinglePartDialogProps) {
             <LargePreview polygon={part.polygon} bbox={part.bbox} svgSize={320} />
           </div>
           <div className="space-y-4">
-            <ConfirmControls
+            <UnitPicker
               units={units}
               detectedUnits={detectedUnits}
-              onUnitsChange={setUnits}
-              bbox={part.bbox}
-              quantity={quantity}
-              onQuantityChange={setQuantity}
-              partNumber={partNumber}
-              partNumberPlaceholder={defaultedPartNumber}
-              onPartNumberChange={setPartNumber}
-              idPrefix="dxf"
+              sourceType={SOURCE_TYPE}
+              onChange={setUnits}
+            />
+            <DimensionsLine bbox={part.bbox} units={units} />
+            <QuantityField id="dxf-single-qty" value={quantity} onChange={setQuantity} />
+            <PartNumberField
+              id="dxf-single-pn"
+              value={partNumber}
+              placeholder={defaultedPartNumber}
+              onChange={setPartNumber}
             />
           </div>
         </div>
@@ -244,7 +213,10 @@ function MultiPartDialog(props: MultiPartDialogProps) {
     <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
-          <DialogTitle>Review DXF Import — {parts.length} parts found</DialogTitle>
+          <div className="flex items-center gap-2">
+            <DialogTitle>Review DXF Import — {parts.length} parts found</DialogTitle>
+            <SourceTypeChip type={SOURCE_TYPE} />
+          </div>
           <DialogDescription>{baseName(sourceFile)}</DialogDescription>
         </DialogHeader>
 
@@ -263,17 +235,19 @@ function MultiPartDialog(props: MultiPartDialogProps) {
             total={parts.length}
           />
           <div className="space-y-4 pt-6">
-            <ConfirmControls
+            <UnitPicker
               units={units}
               detectedUnits={detectedUnits}
-              onUnitsChange={setUnits}
-              bbox={selectedPart?.bbox}
-              quantity={quantity}
-              onQuantityChange={setQuantity}
-              partNumber={partNumber}
-              partNumberPlaceholder={defaultedPartNumber}
-              onPartNumberChange={setPartNumber}
-              idPrefix="dxf-multi"
+              sourceType={SOURCE_TYPE}
+              onChange={setUnits}
+            />
+            <DimensionsLine bbox={selectedPart?.bbox} units={units} />
+            <QuantityField id="dxf-multi-qty" value={quantity} onChange={setQuantity} />
+            <PartNumberField
+              id="dxf-multi-pn"
+              value={partNumber}
+              placeholder={defaultedPartNumber}
+              onChange={setPartNumber}
             />
           </div>
         </div>
@@ -314,7 +288,10 @@ export default function DxfReviewDialog({
   const [partNumber, setPartNumber] = useState("")
 
   const selectedPart = parts[selectedIdx]
-  const warnings = useMemo(() => buildWarnings(rejected, ignoredLayers), [rejected, ignoredLayers])
+  const warnings = useMemo(
+    () => buildDxfWarnings(rejected, ignoredLayers),
+    [rejected, ignoredLayers]
+  )
 
   const defaultedPartNumber = partNumber.trim() || baseName(sourceFile)
   const canConfirm = parts.length > 0 && selectedPart != null && quantity > 0 && units !== undefined

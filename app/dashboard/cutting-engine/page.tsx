@@ -17,6 +17,7 @@ import PresetDimensionSelector, {
 import CutListUpload from "./_components/cut-list-upload"
 import type { ExtractedPart } from "@/src/application/vision/types"
 import type { DxfImportedPart } from "@/src/application/cad/dxf-types"
+import type { SvgImportedPart } from "@/src/application/cad/svg-types"
 import type { SimpleCutDirection } from "./_components/NestingVisualizer"
 import type { SimpleCutMetrics } from "./_components/nesting-visualizer-types"
 import {
@@ -383,7 +384,10 @@ function CutPlannerPageInner() {
     }
   }
 
-  const handleDxfPartConfirmed = (part: DxfImportedPart) => {
+  const handleCadPartConfirmed = (
+    part: DxfImportedPart | SvgImportedPart,
+    sourceType: "dxf" | "svg"
+  ) => {
     // Convert mm → inches at confirm-time so all downstream math
     // (preset-utils area, bin estimator, packing) operates in inches
     // — see preset-utils.ts:getTemplateAreaSqFt's polygon case.
@@ -395,10 +399,10 @@ function CutPlannerPageInner() {
       ),
     }
     const template: PartTemplate = {
-      id: `dxf-${crypto.randomUUID()}`,
+      id: `${sourceType}-${crypto.randomUUID()}`,
       partType: "polygon",
       label: part.partNumber,
-      summary: `DXF: ${part.sourceFile}`,
+      summary: `${sourceType.toUpperCase()}: ${part.sourceFile}`,
       quantity: part.quantity,
       category: "custom",
       polygon: inchPolygon,
@@ -407,6 +411,14 @@ function CutPlannerPageInner() {
       isCustom: true,
     }
     setUploadedParts((prev) => [...prev, template])
+  }
+
+  const handleDxfPartConfirmed = (part: DxfImportedPart) => {
+    handleCadPartConfirmed(part, "dxf")
+  }
+
+  const handleSvgPartConfirmed = (part: SvgImportedPart) => {
+    handleCadPartConfirmed(part, "svg")
   }
 
   const removeUploadedPart = (id: string) => {
@@ -836,6 +848,7 @@ function CutPlannerPageInner() {
       <CutListUpload
         onPartsConfirmed={handleUploadedParts}
         onDxfPartConfirmed={handleDxfPartConfirmed}
+        onSvgPartConfirmed={handleSvgPartConfirmed}
       />
 
       {uploadedParts.length > 0 && (
